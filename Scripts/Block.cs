@@ -5,20 +5,43 @@ public class Block : MonoBehaviour
     public BlockElementType elementType;
 
     [Header("Renderer")]
-    public SpriteRenderer sr;   // Blok sprite
+    public SpriteRenderer sr;
 
-    [Header("Effects")]
+    [Header("Effects (Auto Found)")]
     public ParticleSystem fireEffect;
     public ParticleSystem iceEffect;
     public ParticleSystem windEffect;
     public ParticleSystem electricEffect;
 
-    void Start()
+    private void Awake()
+    {
+        // Eðer Inspector’da atanmamýþsa otomatik bul
+        if (sr == null)
+            sr = GetComponentInChildren<SpriteRenderer>();
+
+        if (fireEffect == null)
+            fireEffect = transform.Find("FireEffect")?.GetComponent<ParticleSystem>();
+
+        if (iceEffect == null)
+            iceEffect = transform.Find("IceEffect")?.GetComponent<ParticleSystem>();
+
+        if (windEffect == null)
+            windEffect = transform.Find("WindEffect")?.GetComponent<ParticleSystem>();
+
+        if (electricEffect == null)
+            electricEffect = transform.Find("ElectricEffect")?.GetComponent<ParticleSystem>();
+    }
+
+    private void Start()
     {
         ApplyElementVisuals();
     }
+
     public void ApplyElementVisuals()
     {
+        // Tüm efektleri kapat
+        DisableAllEffects();
+
         switch (elementType)
         {
             case BlockElementType.Fire:
@@ -42,10 +65,20 @@ public class Block : MonoBehaviour
                 break;
         }
     }
+    private void DisableAllEffects()
+    {
+        if (fireEffect != null) fireEffect.Stop();
+        if (iceEffect != null) iceEffect.Stop();
+        if (windEffect != null) windEffect.Stop();
+        if (electricEffect != null) electricEffect.Stop();
+    }
+
     private void PlayEffect(ParticleSystem fx)
     {
         if (fx != null)
         {
+            fx.Stop();
+            fx.Clear();
             fx.Play();
         }
     }

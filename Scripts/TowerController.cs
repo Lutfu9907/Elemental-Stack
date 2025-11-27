@@ -8,13 +8,13 @@ public class TowerController : MonoBehaviour
     public float blockHeight = 1f;
 
     [Header("Movement")]
-    public float moveSpeed = 2f;            // Ana hız
-    private float baseMoveSpeed;            // Ice tarafından değiştirilecek olan
+    public float moveSpeed = 2f;
+    private float baseMoveSpeed;
     public float speedIncreasePerScore = 0.1f;
     public float moveRange = 3f;
 
     [Header("Difficulty")]
-    public float missChance = 0.08f;        // %8 kayık spawn
+    public float missChance = 0.08f;
 
     private GameObject currentBlock;
     private float nextY = 0f;
@@ -23,6 +23,7 @@ public class TowerController : MonoBehaviour
 
     private CameraFollow camFollow;
     public int score = 0;
+    private bool gameActive = true; // ← restart sonrası tıklamaları kontrol için
 
     void Start()
     {
@@ -37,10 +38,11 @@ public class TowerController : MonoBehaviour
 
     void Update()
     {
+        if (!gameActive) return; // oyun aktif değilse tıklama ve hareket yok
+
         if (currentBlock != null && isMoving)
         {
             float finalSpeed = moveSpeed + score * speedIncreasePerScore;
-
             currentBlock.transform.position += Vector3.right * direction * finalSpeed * Time.deltaTime;
 
             if (currentBlock.transform.position.x > moveRange) direction = -1f;
@@ -55,6 +57,8 @@ public class TowerController : MonoBehaviour
 
     public void AddOrDropBlock()
     {
+        if (!gameActive) return;
+
         if (currentBlock == null)
             CreateNewBlock();
         else
@@ -64,33 +68,28 @@ public class TowerController : MonoBehaviour
         }
     }
 
-    // ------------------ CREATE BLOCK ------------------
     private void CreateNewBlock()
     {
+        GameObject prevBlock = transform.childCount > 0 ? transform.GetChild(transform.childCount - 1).gameObject : null;
+
         float spawnX = 0f;
+        Vector3 spawnScale = blockPrefab.transform.localScale;
 
-        // Eğer alt blok varsa, yeni blokun genişliği alt bloğa göre ayarlansın
-        if (transform.childCount > 0)
+        if (prevBlock != null)
         {
-            GameObject prevBlock = transform.GetChild(transform.childCount - 1).gameObject;
-            float prevWidth = prevBlock.transform.localScale.x;
-
-            // Yeni blokun genişliği alt bloğa eşit
-            Vector3 scale = blockPrefab.transform.localScale;
-            scale.x = prevWidth;
-            blockPrefab.transform.localScale = scale;
-
-            // X pozisyonu hafif random kaydırma ile
-            spawnX += Random.Range(-0.15f, 0.15f);
+            // Yeni blok, alt blokla aynı genişlikte başlar
+            spawnScale.x = prevBlock.transform.localScale.x;
+            spawnX = prevBlock.transform.position.x; // Ortala
         }
 
         Vector3 spawnPos = new Vector3(spawnX, nextY, 0f);
 
-        // %8 ihtimalle hafif kayık spawn = zorluk
+        // %8 ihtimalle hafif kayık spawn
         if (Random.value < missChance)
             spawnPos.x += Random.Range(-0.3f, 0.3f);
 
         currentBlock = Instantiate(blockPrefab, spawnPos, Quaternion.identity);
+        currentBlock.transform.localScale = spawnScale;
 
         Rigidbody2D rb = currentBlock.GetComponent<Rigidbody2D>();
         if (rb != null)
@@ -111,37 +110,27 @@ public class TowerController : MonoBehaviour
         direction = 1f;
     }
 
-    // ------------------ ELEMENT EFFECTS ------------------
     private void ApplyElementDifficulty(Block blockScript)
     {
-        // Önce Ice varsa hızı resetle
         moveSpeed = baseMoveSpeed;
 
         switch (blockScript.elementType)
         {
             case BlockElementType.Fire:
-                // Fire: spawn biraz dengesiz olsun
                 currentBlock.transform.position += new Vector3(Random.Range(-0.2f, 0.2f), 0f, 0f);
                 break;
-
             case BlockElementType.Ice:
-                // Ice: hareket %20 hızlanır
                 moveSpeed = baseMoveSpeed * 1.2f;
                 break;
-
             case BlockElementType.Wind:
-                // Wind: spawn pozisyonu sağ-sol kayar
                 currentBlock.transform.position += new Vector3(Random.Range(-0.6f, 0.6f), 0f, 0f);
                 break;
-
             case BlockElementType.Electric:
-                // Electric: spawn anında küçük titreşim
                 currentBlock.transform.position += new Vector3(Random.Range(-0.1f, 0.1f), 0f, 0f);
                 break;
         }
     }
 
-    // ------------------ DROP BLOCK ------------------
     private void DropCurrentBlock()
     {
         isMoving = false;
@@ -149,76 +138,69 @@ public class TowerController : MonoBehaviour
         Rigidbody2D rb = currentBlock.GetComponent<Rigidbody2D>();
         if (rb == null) rb = currentBlock.AddComponent<Rigidbody2D>();
 
-        GameObject prevBlock = transform.childCount > 0
-            ? transform.GetChild(transform.childCount - 1).gameObject
-            : null;
+        GameObject prevBlock = transform.childCount > 0 ? transform.GetChild(transform.childCount - 1).gameObject : null;
 
-        float originalWidth = blockPrefab.transform.localScale.x;
-
-        // İlk blok → direkt koy
         if (prevBlock == null)
         {
+            // İlk blok → direkt koy
             currentBlock.transform.position = new Vector3(0f, nextY, 0f);
             rb.bodyType = RigidbodyType2D.Kinematic;
             rb.gravityScale = 0f;
             currentBlock.transform.parent = transform;
             nextY += blockHeight;
-
             score++;
-
             currentBlock = null;
             return;
         }
 
-        float deltaX = Mathf.Abs(currentBlock.transform.position.x - prevBlock.transform.position.x);
-        float maxAllowOverlap = (originalWidth + originalWidth) / 2f;
+        float deltaX = currentBlock.transform.position.x - prevBlock.transform.position.x;
+        float prevWidth = prevBlock.transform.localScale.x;
 
-        // Üst üste binmediyse → düşüş
-        if (deltaX >= maxAllowOverlap)
+        // Eğer overlap yok → düşüş
+        if (Mathf.Abs(deltaX) >= prevWidth)
         {
             rb.bodyType = RigidbodyType2D.Dynamic;
             rb.gravityScale = 2f;
             rb.angularVelocity = Random.Range(-200f, 200f);
-            rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-
             currentBlock.transform.parent = null;
             StartCoroutine(TriggerGameOver());
-
             currentBlock = null;
             return;
         }
 
-        // Üst üste geldi → hizala & küçük ayar ile scale
-        Vector3 pos = currentBlock.transform.position;
-        pos.x = prevBlock.transform.position.x; // X ortala
-        pos.y = prevBlock.transform.position.y + blockHeight; // Y kesin üst üste
-        currentBlock.transform.position = pos;
-
-        // Küçülme için eşik mantığı
-        float minOverlapThreshold = 0.05f; // %5 tolerans
-        float overlap = Mathf.Max(0, originalWidth - deltaX);
-        if (overlap / originalWidth > 0.95f) // %95 veya daha fazlaysa neredeyse tam denk
-            overlap = originalWidth; // küçültme yapma
+        // Üst üste geldi → scale sadece gerçek overlap kadar
+        float overlap = prevWidth - Mathf.Abs(deltaX);
+        overlap = Mathf.Max(overlap, prevWidth * 0.3f); // minimum %30 genişlik
 
         Vector3 scale = currentBlock.transform.localScale;
         scale.x = overlap;
         currentBlock.transform.localScale = scale;
 
+        Vector3 pos = currentBlock.transform.position;
+        pos.x = prevBlock.transform.position.x + Mathf.Clamp(deltaX, -prevWidth / 2 + overlap / 2, prevWidth / 2 - overlap / 2);
+        pos.y = prevBlock.transform.position.y + blockHeight;
+        currentBlock.transform.position = pos;
+
         rb.bodyType = RigidbodyType2D.Kinematic;
         rb.gravityScale = 0f;
-        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-
         currentBlock.transform.parent = transform;
+
         nextY = pos.y + blockHeight;
-
         score++;
-
         currentBlock = null;
     }
+
     private IEnumerator TriggerGameOver()
     {
+        gameActive = false; // ← artık tıklamalar bloke
         yield return new WaitForSeconds(0.5f);
         GameManager gm = FindObjectOfType<GameManager>();
         if (gm != null) gm.GameOver();
+    }
+
+    // -------- PUBLIC: Restart --------
+    public void RestartGame()
+    {
+        gameActive = true;
     }
 }
