@@ -9,7 +9,6 @@ public class TowerController : MonoBehaviour
 
     [Header("Movement")]
     public float moveSpeed = 2f;
-    private float baseMoveSpeed;
     public float speedIncreasePerScore = 0.1f;
     public float moveRange = 3f;
 
@@ -20,15 +19,13 @@ public class TowerController : MonoBehaviour
     private float nextY = 0f;
     private bool isMoving = false;
     private float direction = 1f;
+    private bool isGameOver = false;
 
     private CameraFollow camFollow;
     public int score = 0;
-    private bool gameActive = true; // ← restart sonrası tıklamaları kontrol için
 
     void Start()
     {
-        baseMoveSpeed = moveSpeed;
-
         nextY = transform.childCount > 0
             ? transform.GetChild(transform.childCount - 1).position.y + blockHeight
             : 0f;
@@ -38,12 +35,11 @@ public class TowerController : MonoBehaviour
 
     void Update()
     {
-        if (!gameActive) return; // oyun aktif değilse tıklama ve hareket yok
+        if (isGameOver) return; // GameOver sonrası blok eklenmesini engelle
 
         if (currentBlock != null && isMoving)
         {
-            float finalSpeed = moveSpeed + score * speedIncreasePerScore;
-            currentBlock.transform.position += Vector3.right * direction * finalSpeed * Time.deltaTime;
+            currentBlock.transform.position += Vector3.right * direction * (moveSpeed + score * speedIncreasePerScore) * Time.deltaTime;
 
             if (currentBlock.transform.position.x > moveRange) direction = -1f;
             if (currentBlock.transform.position.x < -moveRange) direction = 1f;
@@ -57,7 +53,7 @@ public class TowerController : MonoBehaviour
 
     public void AddOrDropBlock()
     {
-        if (!gameActive) return;
+        if (isGameOver) return;
 
         if (currentBlock == null)
             CreateNewBlock();
@@ -70,26 +66,27 @@ public class TowerController : MonoBehaviour
 
     private void CreateNewBlock()
     {
-        GameObject prevBlock = transform.childCount > 0 ? transform.GetChild(transform.childCount - 1).gameObject : null;
-
         float spawnX = 0f;
-        Vector3 spawnScale = blockPrefab.transform.localScale;
 
-        if (prevBlock != null)
+        // Önceki bloğa göre yeni bloğun genişliğini ayarla
+        if (transform.childCount > 0)
         {
-            // Yeni blok, alt blokla aynı genişlikte başlar
-            spawnScale.x = prevBlock.transform.localScale.x;
-            spawnX = prevBlock.transform.position.x; // Ortala
+            GameObject prevBlock = transform.GetChild(transform.childCount - 1).gameObject;
+            float prevWidth = prevBlock.transform.localScale.x;
+
+            Vector3 scale = blockPrefab.transform.localScale;
+            scale.x = prevWidth;
+            blockPrefab.transform.localScale = scale;
+
+            spawnX += Random.Range(-0.15f, 0.15f);
         }
 
         Vector3 spawnPos = new Vector3(spawnX, nextY, 0f);
 
-        // %8 ihtimalle hafif kayık spawn
         if (Random.value < missChance)
             spawnPos.x += Random.Range(-0.3f, 0.3f);
 
         currentBlock = Instantiate(blockPrefab, spawnPos, Quaternion.identity);
-        currentBlock.transform.localScale = spawnScale;
 
         Rigidbody2D rb = currentBlock.GetComponent<Rigidbody2D>();
         if (rb != null)
@@ -98,37 +95,14 @@ public class TowerController : MonoBehaviour
             rb.gravityScale = 0f;
         }
 
-        // Element atama
         Block blockScript = currentBlock.GetComponent<Block>();
-        blockScript.elementType = (BlockElementType)Random.Range(0, 4);
-        ApplyElementDifficulty(blockScript);
+        blockScript.elementType = (BlockElementType)Random.Range(0, 5); // None da dahil
 
         if (camFollow != null)
             camFollow.target = currentBlock.transform;
 
         isMoving = true;
         direction = 1f;
-    }
-
-    private void ApplyElementDifficulty(Block blockScript)
-    {
-        moveSpeed = baseMoveSpeed;
-
-        switch (blockScript.elementType)
-        {
-            case BlockElementType.Fire:
-                currentBlock.transform.position += new Vector3(Random.Range(-0.2f, 0.2f), 0f, 0f);
-                break;
-            case BlockElementType.Ice:
-                moveSpeed = baseMoveSpeed * 1.2f;
-                break;
-            case BlockElementType.Wind:
-                currentBlock.transform.position += new Vector3(Random.Range(-0.6f, 0.6f), 0f, 0f);
-                break;
-            case BlockElementType.Electric:
-                currentBlock.transform.position += new Vector3(Random.Range(-0.1f, 0.1f), 0f, 0f);
-                break;
-        }
     }
 
     private void DropCurrentBlock()
@@ -138,69 +112,90 @@ public class TowerController : MonoBehaviour
         Rigidbody2D rb = currentBlock.GetComponent<Rigidbody2D>();
         if (rb == null) rb = currentBlock.AddComponent<Rigidbody2D>();
 
-        GameObject prevBlock = transform.childCount > 0 ? transform.GetChild(transform.childCount - 1).gameObject : null;
+        GameObject prevBlock = transform.childCount > 0
+            ? transform.GetChild(transform.childCount - 1).gameObject
+            : null;
 
+        float originalWidth = blockPrefab.transform.localScale.x;
+
+        // İlk blok → direkt yerleştir
         if (prevBlock == null)
         {
-            // İlk blok → direkt koy
-            currentBlock.transform.position = new Vector3(0f, nextY, 0f);
-            rb.bodyType = RigidbodyType2D.Kinematic;
-            rb.gravityScale = 0f;
-            currentBlock.transform.parent = transform;
-            nextY += blockHeight;
-            score++;
-            currentBlock = null;
+            PlaceBlock(currentBlock, Vector3.zero);
             return;
         }
 
-        float deltaX = currentBlock.transform.position.x - prevBlock.transform.position.x;
-        float prevWidth = prevBlock.transform.localScale.x;
+        float deltaX = Mathf.Abs(currentBlock.transform.position.x - prevBlock.transform.position.x);
+        float maxAllowOverlap = originalWidth; // %100 overlap limit
 
-        // Eğer overlap yok → düşüş
-        if (Mathf.Abs(deltaX) >= prevWidth)
+        if (deltaX >= maxAllowOverlap)
         {
+            // Game Over
             rb.bodyType = RigidbodyType2D.Dynamic;
             rb.gravityScale = 2f;
             rb.angularVelocity = Random.Range(-200f, 200f);
             currentBlock.transform.parent = null;
+
             StartCoroutine(TriggerGameOver());
             currentBlock = null;
             return;
         }
 
-        // Üst üste geldi → scale sadece gerçek overlap kadar
-        float overlap = prevWidth - Mathf.Abs(deltaX);
-        overlap = Mathf.Max(overlap, prevWidth * 0.3f); // minimum %30 genişlik
+        // Üst üste → hizala & scale uygula
+        Vector3 pos = currentBlock.transform.position;
+        pos.x = prevBlock.transform.position.x;
+        pos.y = prevBlock.transform.position.y + blockHeight;
+        currentBlock.transform.position = pos;
+
+        // -------------------- STABİL KÜÇÜLME --------------------
+        float overlap = originalWidth - deltaX;
+
+        // Eğer tam üst üste denk gelmişse küçülme yok
+        if (deltaX < 0.05f)
+            overlap = originalWidth;
+        else
+        {
+            // Orantılı kırpma
+            overlap = Mathf.Clamp(overlap, originalWidth * 0.5f, originalWidth);
+        }
 
         Vector3 scale = currentBlock.transform.localScale;
         scale.x = overlap;
         currentBlock.transform.localScale = scale;
-
-        Vector3 pos = currentBlock.transform.position;
-        pos.x = prevBlock.transform.position.x + Mathf.Clamp(deltaX, -prevWidth / 2 + overlap / 2, prevWidth / 2 - overlap / 2);
-        pos.y = prevBlock.transform.position.y + blockHeight;
-        currentBlock.transform.position = pos;
+        // --------------------------------------------------------
 
         rb.bodyType = RigidbodyType2D.Kinematic;
         rb.gravityScale = 0f;
         currentBlock.transform.parent = transform;
-
         nextY = pos.y + blockHeight;
+
+        score++;
+        currentBlock = null;
+    }
+    private void PlaceBlock(GameObject block, Vector3 offset)
+    {
+        block.transform.position = new Vector3(0f, nextY, 0f) + offset;
+        Rigidbody2D rb = block.GetComponent<Rigidbody2D>();
+        rb.bodyType = RigidbodyType2D.Kinematic;
+        rb.gravityScale = 0f;
+        block.transform.parent = transform;
+        nextY += blockHeight;
+
         score++;
         currentBlock = null;
     }
 
     private IEnumerator TriggerGameOver()
     {
-        gameActive = false; // ← artık tıklamalar bloke
+        isGameOver = true;
         yield return new WaitForSeconds(0.5f);
         GameManager gm = FindObjectOfType<GameManager>();
         if (gm != null) gm.GameOver();
     }
 
-    // -------- PUBLIC: Restart --------
     public void RestartGame()
     {
-        gameActive = true;
+        isGameOver = false;
+        currentBlock = null;
     }
 }
