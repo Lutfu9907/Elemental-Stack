@@ -1,11 +1,15 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class Block : MonoBehaviour
 {
+    public enum BlockElementType { Fire, Ice, Wind, Electric, None }
     public BlockElementType elementType;
 
     [Header("Renderer")]
     public SpriteRenderer sr;
+
+    [HideInInspector]
+    public Color blockColor; // Her bloÄŸun renk bilgisi burada tutulacak
 
     private void Awake()
     {
@@ -23,24 +27,23 @@ public class Block : MonoBehaviour
         switch (elementType)
         {
             case BlockElementType.Fire:
-                sr.color = new Color(1f, 0.3f, 0.2f); // Kýrmýzýmsý
+                blockColor = new Color(1f, 0.3f, 0.2f); // KÄ±rmÄ±zÄ±msÄ±
                 break;
-
             case BlockElementType.Ice:
-                sr.color = new Color(0.3f, 0.7f, 1f); // Mavi
+                blockColor = new Color(0.3f, 0.7f, 1f); // Mavi
                 break;
-
             case BlockElementType.Wind:
-                sr.color = new Color(0.7f, 1f, 0.7f); // Yeþil
+                blockColor = new Color(0.7f, 1f, 0.7f); // YeÅŸil
                 break;
-
             case BlockElementType.Electric:
-                sr.color = new Color(1f, 1f, 0.3f); // Sarý
+                blockColor = new Color(1f, 1f, 0.3f); // SarÄ±
                 break;
-
             case BlockElementType.None:
-                sr.color = Color.white; // Ýlk blok veya boþ tip için
+                blockColor = Color.white;
                 break;
         }
+
+        if (sr != null)
+            sr.color = blockColor;
     }
 }

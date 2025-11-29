@@ -35,7 +35,7 @@ public class TowerController : MonoBehaviour
 
     void Update()
     {
-        if (isGameOver) return; // GameOver sonrası blok eklenmesini engelle
+        if (isGameOver) return;
 
         if (currentBlock != null && isMoving)
         {
@@ -68,7 +68,7 @@ public class TowerController : MonoBehaviour
     {
         float spawnX = 0f;
 
-        // Önceki bloğa göre yeni bloğun genişliğini ayarla
+        // Önceki bloğa göre genişlik ayarı
         if (transform.childCount > 0)
         {
             GameObject prevBlock = transform.GetChild(transform.childCount - 1).gameObject;
@@ -96,44 +96,53 @@ public class TowerController : MonoBehaviour
         }
 
         Block blockScript = currentBlock.GetComponent<Block>();
-        blockScript.elementType = (BlockElementType)Random.Range(0, 5); // None da dahil
+        if (blockScript != null)
+        {
+            // Rastgele tip ata ve renk uygula
+            blockScript.elementType = (Block.BlockElementType)Random.Range(0, 4); // 0-3 Fire,Ice,Wind,Electric, None yok
+            blockScript.ApplyElementColor();
+        }
 
         if (camFollow != null)
             camFollow.target = currentBlock.transform;
 
+        // Blok hareketini başlat
         isMoving = true;
-        direction = 1f;
+
+        // Yönü rastgele belirle (sağ veya sol)
+        direction = Random.value < 0.5f ? -1f : 1f;
     }
 
     private void DropCurrentBlock()
     {
+        if (!isMoving || currentBlock == null) return;
         isMoving = false;
-
-        Rigidbody2D rb = currentBlock.GetComponent<Rigidbody2D>();
-        if (rb == null) rb = currentBlock.AddComponent<Rigidbody2D>();
 
         GameObject prevBlock = transform.childCount > 0
             ? transform.GetChild(transform.childCount - 1).gameObject
             : null;
 
-        float originalWidth = blockPrefab.transform.localScale.x;
-
-        // İlk blok → direkt yerleştir
         if (prevBlock == null)
         {
             PlaceBlock(currentBlock, Vector3.zero);
             return;
         }
 
-        float deltaX = Mathf.Abs(currentBlock.transform.position.x - prevBlock.transform.position.x);
-        float maxAllowOverlap = originalWidth; // %100 overlap limit
+        float prevWidth = prevBlock.transform.localScale.x;
+        float halfPrev = prevWidth * 0.5f;
 
-        if (deltaX >= maxAllowOverlap)
+        float overhang = currentBlock.transform.position.x - prevBlock.transform.position.x;
+        float absOverhang = Mathf.Abs(overhang);
+
+        float overlapWidth = Mathf.Max(0f, prevWidth - absOverhang);
+
+        if (overlapWidth <= 0f)
         {
-            // Game Over
-            rb.bodyType = RigidbodyType2D.Dynamic;
-            rb.gravityScale = 2f;
-            rb.angularVelocity = Random.Range(-200f, 200f);
+            Rigidbody2D rbMiss = currentBlock.GetComponent<Rigidbody2D>();
+            if (rbMiss == null) rbMiss = currentBlock.AddComponent<Rigidbody2D>();
+            rbMiss.bodyType = RigidbodyType2D.Dynamic;
+            rbMiss.gravityScale = 3f;
+            rbMiss.angularVelocity = Random.Range(-200f, 200f);
             currentBlock.transform.parent = null;
 
             StartCoroutine(TriggerGameOver());
@@ -141,41 +150,107 @@ public class TowerController : MonoBehaviour
             return;
         }
 
-        // Üst üste → hizala & scale uygula
-        Vector3 pos = currentBlock.transform.position;
-        pos.x = prevBlock.transform.position.x;
-        pos.y = prevBlock.transform.position.y + blockHeight;
-        currentBlock.transform.position = pos;
-
-        // -------------------- STABİL KÜÇÜLME --------------------
-        float overlap = originalWidth - deltaX;
-
-        // Eğer tam üst üste denk gelmişse küçülme yok
-        if (deltaX < 0.05f)
-            overlap = originalWidth;
+        float tolerance = 0.05f * prevWidth;
+        if (absOverhang < tolerance)
+        {
+            overlapWidth = prevWidth;
+            overhang = 0f;
+        }
         else
         {
-            // Orantılı kırpma
-            overlap = Mathf.Clamp(overlap, originalWidth * 0.5f, originalWidth);
+            float minAllowed = prevWidth * 0.5f;
+            overlapWidth = Mathf.Clamp(overlapWidth, minAllowed, prevWidth);
         }
 
-        Vector3 scale = currentBlock.transform.localScale;
-        scale.x = overlap;
-        currentBlock.transform.localScale = scale;
-        // --------------------------------------------------------
+        float newCenterX = prevBlock.transform.position.x + (overhang / 2f);
+        Vector3 newPos = currentBlock.transform.position;
+        newPos.x = newCenterX;
+        newPos.y = prevBlock.transform.position.y + blockHeight;
+        currentBlock.transform.position = newPos;
 
-        rb.bodyType = RigidbodyType2D.Kinematic;
-        rb.gravityScale = 0f;
+        Vector3 newScale = currentBlock.transform.localScale;
+        newScale.x = overlapWidth;
+        currentBlock.transform.localScale = newScale;
+
+        // BLOK RENGİ
+        SpriteRenderer currentSR = currentBlock.GetComponentInChildren<SpriteRenderer>();
+        Color blockColor = currentSR != null ? currentSR.color : Color.gray;
+
+        // Kırpılan parçalar
+        float prevLeft = prevBlock.transform.position.x - halfPrev;
+        float prevRight = prevBlock.transform.position.x + halfPrev;
+
+        float overlapLeft = newCenterX - (overlapWidth * 0.5f);
+        float overlapRight = newCenterX + (overlapWidth * 0.5f);
+
+        if (overlapLeft > prevLeft + 0.001f)
+        {
+            float leftWidth = overlapLeft - prevLeft;
+            float leftCenter = (prevLeft + overlapLeft) * 0.5f;
+            SpawnFallingPiece(leftCenter, leftWidth, currentBlock.transform.position.y + blockHeight, blockColor);
+        }
+
+        if (overlapRight < prevRight - 0.001f)
+        {
+            float rightWidth = prevRight - overlapRight;
+            float rightCenter = (prevRight + overlapRight) * 0.5f;
+            SpawnFallingPiece(rightCenter, rightWidth, currentBlock.transform.position.y + blockHeight, blockColor);
+        }
+
+        // Ana bloğu sabitle
+        Rigidbody2D rbBlock = currentBlock.GetComponent<Rigidbody2D>();
+        if (rbBlock == null) rbBlock = currentBlock.AddComponent<Rigidbody2D>();
+        rbBlock.bodyType = RigidbodyType2D.Kinematic;
+        rbBlock.gravityScale = 0f;
         currentBlock.transform.parent = transform;
-        nextY = pos.y + blockHeight;
+        nextY = newPos.y + blockHeight;
 
         score++;
         currentBlock = null;
     }
+    private void SpawnFallingPiece(float centerX, float width, float startY, Color color)
+    {
+        if (width <= 0f) return;
+
+        GameObject piece = Instantiate(blockPrefab);
+        piece.transform.localScale = new Vector3(width, blockPrefab.transform.localScale.y, blockPrefab.transform.localScale.z);
+        piece.transform.position = new Vector3(centerX, startY + 0.5f, 0f);
+
+        Block blockScript = piece.GetComponent<Block>();
+        if (blockScript != null)
+            blockScript.blockColor = color;
+
+        SpriteRenderer sr = piece.GetComponentInChildren<SpriteRenderer>();
+        if (sr != null)
+            sr.color = color;
+
+        Rigidbody2D rb = piece.GetComponent<Rigidbody2D>();
+        if (rb == null) rb = piece.AddComponent<Rigidbody2D>();
+        rb.bodyType = RigidbodyType2D.Dynamic;
+        rb.gravityScale = 3f;
+        rb.angularVelocity = Random.Range(-200f, 200f);
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+        BoxCollider2D col = piece.GetComponent<BoxCollider2D>();
+        if (col == null) col = piece.AddComponent<BoxCollider2D>();
+
+        // Alt bloğa çarpmaz
+        foreach (Transform child in transform)
+        {
+            Collider2D childCol = child.GetComponent<Collider2D>();
+            if (childCol != null)
+                Physics2D.IgnoreCollision(rb.GetComponent<Collider2D>(), childCol, true);
+        }
+
+        Destroy(piece, 5f);
+    }
+
+
     private void PlaceBlock(GameObject block, Vector3 offset)
     {
         block.transform.position = new Vector3(0f, nextY, 0f) + offset;
         Rigidbody2D rb = block.GetComponent<Rigidbody2D>();
+        if (rb == null) rb = block.AddComponent<Rigidbody2D>();
         rb.bodyType = RigidbodyType2D.Kinematic;
         rb.gravityScale = 0f;
         block.transform.parent = transform;
