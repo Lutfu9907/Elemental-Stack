@@ -187,14 +187,14 @@ public class TowerController : MonoBehaviour
         {
             float leftWidth = overlapLeft - prevLeft;
             float leftCenter = (prevLeft + overlapLeft) * 0.5f;
-            SpawnFallingPiece(leftCenter, leftWidth, currentBlock.transform.position.y + blockHeight, blockColor);
+            SpawnFallingPiece(leftCenter, leftWidth, currentBlock.transform.position.y + blockHeight);
         }
 
         if (overlapRight < prevRight - 0.001f)
         {
             float rightWidth = prevRight - overlapRight;
             float rightCenter = (prevRight + overlapRight) * 0.5f;
-            SpawnFallingPiece(rightCenter, rightWidth, currentBlock.transform.position.y + blockHeight, blockColor);
+            SpawnFallingPiece(rightCenter, rightWidth, currentBlock.transform.position.y + blockHeight);
         }
 
         // Ana bloğu sabitle
@@ -208,43 +208,61 @@ public class TowerController : MonoBehaviour
         score++;
         currentBlock = null;
     }
-    private void SpawnFallingPiece(float centerX, float width, float startY, Color color)
+    private void SpawnFallingPiece(float centerX, float width, float startY)
     {
         if (width <= 0f) return;
 
         GameObject piece = Instantiate(blockPrefab);
-        piece.transform.localScale = new Vector3(width, blockPrefab.transform.localScale.y, blockPrefab.transform.localScale.z);
+
+        piece.transform.localScale = new Vector3(
+            width,
+            blockPrefab.transform.localScale.y,
+            blockPrefab.transform.localScale.z
+        );
+
         piece.transform.position = new Vector3(centerX, startY + 0.5f, 0f);
 
-        Block blockScript = piece.GetComponent<Block>();
-        if (blockScript != null)
-            blockScript.blockColor = color;
+        // === DOĞRU RENK BURADAN ALINACAK ===
+        Block curBlockScript = currentBlock.GetComponent<Block>();
+        SpriteRenderer pieceSR = piece.GetComponentInChildren<SpriteRenderer>();
+        SpriteRenderer blockSR = currentBlock.GetComponentInChildren<SpriteRenderer>();
 
-        SpriteRenderer sr = piece.GetComponentInChildren<SpriteRenderer>();
-        if (sr != null)
-            sr.color = color;
+        if (curBlockScript != null)
+        {
+            // Parçaya aynı element tipi ver
+            Block pieceScript = piece.GetComponent<Block>();
+            if (pieceScript != null)
+            {
+                pieceScript.elementType = curBlockScript.elementType;
+                pieceScript.ApplyElementColor();    // DOĞRU RENK AYNI ANDA GELİR
+            }
+        }
+        else if (blockSR != null && pieceSR != null)
+        {
+            // Eğer element sistemi yoksa direk renk kopyala
+            pieceSR.color = blockSR.color;
+        }
 
+        // === FİZİK ===
         Rigidbody2D rb = piece.GetComponent<Rigidbody2D>();
         if (rb == null) rb = piece.AddComponent<Rigidbody2D>();
         rb.bodyType = RigidbodyType2D.Dynamic;
         rb.gravityScale = 3f;
         rb.angularVelocity = Random.Range(-200f, 200f);
-        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
         BoxCollider2D col = piece.GetComponent<BoxCollider2D>();
         if (col == null) col = piece.AddComponent<BoxCollider2D>();
 
-        // Alt bloğa çarpmaz
+        // ** Alt bloklarla çarpışmayı tamamen kapat **
         foreach (Transform child in transform)
         {
             Collider2D childCol = child.GetComponent<Collider2D>();
             if (childCol != null)
-                Physics2D.IgnoreCollision(rb.GetComponent<Collider2D>(), childCol, true);
+                Physics2D.IgnoreCollision(col, childCol, true);
         }
 
-        Destroy(piece, 5f);
+        Destroy(piece, 4f);
     }
-
 
     private void PlaceBlock(GameObject block, Vector3 offset)
     {
