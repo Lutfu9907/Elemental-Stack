@@ -20,6 +20,7 @@ public class TowerController : MonoBehaviour
     private bool isMoving = false;
     private float direction = 1f;
     private bool isGameOver = false;
+    public bool gameStarted = false;
 
     private CameraFollow camFollow;
     public int score = 0;
@@ -35,7 +36,7 @@ public class TowerController : MonoBehaviour
 
     void Update()
     {
-        if (isGameOver) return;
+        if (!gameStarted || isGameOver) return;
 
         if (currentBlock != null && isMoving)
         {
@@ -51,9 +52,14 @@ public class TowerController : MonoBehaviour
         }
     }
 
+    public void StartGame()
+    {
+        gameStarted = true;
+    }
+
     public void AddOrDropBlock()
     {
-        if (isGameOver) return;
+        if (!gameStarted || isGameOver) return;
 
         if (currentBlock == null)
             CreateNewBlock();
@@ -64,11 +70,15 @@ public class TowerController : MonoBehaviour
         }
     }
 
+    public void StartTower()
+    {
+        gameStarted = true;
+        CreateNewBlock(); 
+    }
     private void CreateNewBlock()
     {
         float spawnX = 0f;
 
-        // Önceki bloğa göre genişlik ayarı
         if (transform.childCount > 0)
         {
             GameObject prevBlock = transform.GetChild(transform.childCount - 1).gameObject;
@@ -98,18 +108,14 @@ public class TowerController : MonoBehaviour
         Block blockScript = currentBlock.GetComponent<Block>();
         if (blockScript != null)
         {
-            // Rastgele tip ata ve renk uygula
-            blockScript.elementType = (Block.BlockElementType)Random.Range(0, 4); // 0-3 Fire,Ice,Wind,Electric, None yok
+            blockScript.elementType = (Block.BlockElementType)Random.Range(0, 4);
             blockScript.ApplyElementColor();
         }
 
         if (camFollow != null)
             camFollow.target = currentBlock.transform;
 
-        // Blok hareketini başlat
         isMoving = true;
-
-        // Yönü rastgele belirle (sağ veya sol)
         direction = Random.value < 0.5f ? -1f : 1f;
     }
 
@@ -176,7 +182,6 @@ public class TowerController : MonoBehaviour
         SpriteRenderer currentSR = currentBlock.GetComponentInChildren<SpriteRenderer>();
         Color blockColor = currentSR != null ? currentSR.color : Color.gray;
 
-        // Kırpılan parçalar
         float prevLeft = prevBlock.transform.position.x - halfPrev;
         float prevRight = prevBlock.transform.position.x + halfPrev;
 
@@ -197,7 +202,6 @@ public class TowerController : MonoBehaviour
             SpawnFallingPiece(rightCenter, rightWidth, currentBlock.transform.position.y + blockHeight);
         }
 
-        // Ana bloğu sabitle
         Rigidbody2D rbBlock = currentBlock.GetComponent<Rigidbody2D>();
         if (rbBlock == null) rbBlock = currentBlock.AddComponent<Rigidbody2D>();
         rbBlock.bodyType = RigidbodyType2D.Kinematic;
@@ -208,42 +212,26 @@ public class TowerController : MonoBehaviour
         score++;
         currentBlock = null;
     }
+
     private void SpawnFallingPiece(float centerX, float width, float startY)
     {
         if (width <= 0f) return;
 
         GameObject piece = Instantiate(blockPrefab);
-
-        piece.transform.localScale = new Vector3(
-            width,
-            blockPrefab.transform.localScale.y,
-            blockPrefab.transform.localScale.z
-        );
-
+        piece.transform.localScale = new Vector3(width, blockPrefab.transform.localScale.y, blockPrefab.transform.localScale.z);
         piece.transform.position = new Vector3(centerX, startY + 0.5f, 0f);
 
-        // === DOĞRU RENK BURADAN ALINACAK ===
-        Block curBlockScript = currentBlock.GetComponent<Block>();
-        SpriteRenderer pieceSR = piece.GetComponentInChildren<SpriteRenderer>();
-        SpriteRenderer blockSR = currentBlock.GetComponentInChildren<SpriteRenderer>();
-
+        Block curBlockScript = currentBlock != null ? currentBlock.GetComponent<Block>() : null;
         if (curBlockScript != null)
         {
-            // Parçaya aynı element tipi ver
             Block pieceScript = piece.GetComponent<Block>();
             if (pieceScript != null)
             {
                 pieceScript.elementType = curBlockScript.elementType;
-                pieceScript.ApplyElementColor();    // DOĞRU RENK AYNI ANDA GELİR
+                pieceScript.ApplyElementColor();
             }
         }
-        else if (blockSR != null && pieceSR != null)
-        {
-            // Eğer element sistemi yoksa direk renk kopyala
-            pieceSR.color = blockSR.color;
-        }
 
-        // === FİZİK ===
         Rigidbody2D rb = piece.GetComponent<Rigidbody2D>();
         if (rb == null) rb = piece.AddComponent<Rigidbody2D>();
         rb.bodyType = RigidbodyType2D.Dynamic;
@@ -253,7 +241,6 @@ public class TowerController : MonoBehaviour
         BoxCollider2D col = piece.GetComponent<BoxCollider2D>();
         if (col == null) col = piece.AddComponent<BoxCollider2D>();
 
-        // ** Alt bloklarla çarpışmayı tamamen kapat **
         foreach (Transform child in transform)
         {
             Collider2D childCol = child.GetComponent<Collider2D>();
