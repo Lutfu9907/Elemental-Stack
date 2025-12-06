@@ -7,7 +7,10 @@ public class GameManager : MonoBehaviour
     public GameObject startPanel;
     public GameObject gameUIPanel;
     public GameObject gameOverPanel;
+    public TMPro.TextMeshProUGUI scoreText;
+    public TMPro.TextMeshProUGUI highScoreText;
 
+    private int highScore = 0;
     private bool isGameOver = false;
     private bool isGameStarted = false;
     public TowerController tower;
@@ -39,6 +42,21 @@ public class GameManager : MonoBehaviour
         if (tower != null)
         {
             tower.StartTower(); // TowerController’da public StartTower() metodu olmalý
+        }
+        // Skorlarý sýfýrla
+        highScore = PlayerPrefs.GetInt("HighScore", 0);
+        highScoreText.text = "BEST: " + highScore;
+        scoreText.text = "SCORE: 0";
+    }
+    public void UpdateScore(int score)
+    {
+        scoreText.text = "SCORE: " + score;
+
+        if (score > highScore)
+        {
+            highScore = score;
+            highScoreText.text = "BEST: " + highScore;
+            PlayerPrefs.SetInt("HighScore", highScore);
         }
     }
     public void GameOver()
