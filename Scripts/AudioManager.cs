@@ -11,7 +11,6 @@ public class AudioManager : MonoBehaviour
     public AudioClip sliceSound;        // kesildiğinde
     public AudioClip gameOverSound;     // game over
     public AudioClip buttonClickSound;  // buton sesi
-    public AudioClip fallSound;         // düşen parçaların sesi
 
     private AudioSource audioSource;
 
@@ -29,14 +28,12 @@ public class AudioManager : MonoBehaviour
 
         audioSource = GetComponent<AudioSource>();
         Debug.Log("AudioManager awoke: " + gameObject.name);
-
     }
 
     public void PlaySound(AudioClip clip)
     {
-        Debug.Log("PlaySound çağrıldı: " + (clip == null ? "NULL" : clip.name));
-
         if (clip == null) return;
+        if (audioSource == null) return;
 
         audioSource.PlayOneShot(clip);
     }

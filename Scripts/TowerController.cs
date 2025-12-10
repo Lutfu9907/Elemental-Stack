@@ -174,9 +174,8 @@ public class TowerController : MonoBehaviour
             rbMiss.angularVelocity = Random.Range(-200f, 200f);
             currentBlock.transform.parent = null;
 
-            AudioManager.Instance.PlaySound(AudioManager.Instance.fallSound);
-
             StartCoroutine(TriggerGameOver());
+            Destroy(currentBlock, 3f);
             currentBlock = null;
             return;
         }
@@ -283,9 +282,8 @@ public class TowerController : MonoBehaviour
 
         GameObject piece = Instantiate(blockPrefab);
         piece.transform.localScale = new Vector3(width, blockPrefab.transform.localScale.y, blockPrefab.transform.localScale.z);
-        piece.transform.position = new Vector3(centerX, currentBlock.transform.position.y + 0.6f, 0f);
+        piece.transform.position = new Vector3(centerX, currentBlock.transform.position.y + 0f);
 
-        AudioManager.Instance.PlaySound(AudioManager.Instance.fallSound);
 
         Rigidbody2D rb = piece.GetComponent<Rigidbody2D>();
         if (rb == null) rb = piece.AddComponent<Rigidbody2D>();
