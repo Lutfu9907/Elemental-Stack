@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -7,10 +7,11 @@ public class AudioManager : MonoBehaviour
     public static AudioManager Instance;
 
     [Header("Sounds")]
-    public AudioClip placeBlockSound;   // blok yerle�ti�inde
-    public AudioClip sliceSound;        // kesildi�inde
+    public AudioClip placeBlockSound;   // blok yerleştiğinde
+    public AudioClip sliceSound;        // kesildiğinde
     public AudioClip gameOverSound;     // game over
     public AudioClip buttonClickSound;  // buton sesi
+    public AudioClip fallSound;         // düşen parçaların sesi
 
     private AudioSource audioSource;
 
@@ -27,11 +28,17 @@ public class AudioManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         audioSource = GetComponent<AudioSource>();
+        Debug.Log("AudioManager awoke: " + gameObject.name);
+
     }
 
     public void PlaySound(AudioClip clip)
     {
-        if (clip != null)
-            audioSource.PlayOneShot(clip);
+        Debug.Log("PlaySound çağrıldı: " + (clip == null ? "NULL" : clip.name));
+
+        if (clip == null) return;
+
+        audioSource.PlayOneShot(clip);
     }
+
 }
