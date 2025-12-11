@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using UnityEngine;
+using TMPro;
 
 public class TowerController : MonoBehaviour
 {
@@ -14,6 +15,10 @@ public class TowerController : MonoBehaviour
 
     [Header("Difficulty")]
     public float missChance = 0.08f;
+
+    [Header("Perfect Popup")]
+    public float perfectToleranceFactor = 0.03f;
+    private int combo = 0;
 
     [Header("References")]
     public Transform spawnPoint;
@@ -30,7 +35,6 @@ public class TowerController : MonoBehaviour
     private CameraFollow camFollow;
     public int score = 0;
 
-
     void Start()
     {
         nextY = transform.childCount > 0
@@ -40,7 +44,6 @@ public class TowerController : MonoBehaviour
         camFollow = Camera.main.GetComponent<CameraFollow>();
         gm = FindObjectOfType<GameManager>();
     }
-
 
     void Update()
     {
@@ -62,12 +65,10 @@ public class TowerController : MonoBehaviour
         }
     }
 
-
     public void StartGame()
     {
         gameStarted = true;
     }
-
 
     public void AddOrDropBlock()
     {
@@ -84,13 +85,11 @@ public class TowerController : MonoBehaviour
         }
     }
 
-
     public void StartTower()
     {
         gameStarted = true;
         CreateNewBlock();
     }
-
 
     private void CreateNewBlock()
     {
@@ -122,7 +121,6 @@ public class TowerController : MonoBehaviour
             rb.gravityScale = 0f;
         }
 
-        // Element rengi
         Block blockScript = currentBlock.GetComponent<Block>();
         if (blockScript != null)
         {
@@ -137,7 +135,6 @@ public class TowerController : MonoBehaviour
         direction = Random.value < 0.5f ? -1f : 1f;
     }
 
-
     private void DropCurrentBlock()
     {
         if (!isMoving || currentBlock == null) return;
@@ -147,7 +144,6 @@ public class TowerController : MonoBehaviour
             ? transform.GetChild(transform.childCount - 1).gameObject
             : null;
 
-        // İlk blok → otomatik yerleşsin
         if (prevBlock == null)
         {
             AudioManager.Instance.PlaySound(AudioManager.Instance.placeBlockSound);
@@ -156,15 +152,10 @@ public class TowerController : MonoBehaviour
         }
 
         float prevWidth = prevBlock.transform.localScale.x;
-        float halfPrev = prevWidth * 0.5f;
-
         float overhang = currentBlock.transform.position.x - prevBlock.transform.position.x;
         float absOverhang = Mathf.Abs(overhang);
-
         float overlapWidth = Mathf.Max(0f, prevWidth - absOverhang);
 
-
-        // TAM KAÇIRDI → GAME OVER
         if (overlapWidth <= 0f)
         {
             Rigidbody2D rbMiss = currentBlock.GetComponent<Rigidbody2D>();
@@ -175,26 +166,51 @@ public class TowerController : MonoBehaviour
             currentBlock.transform.parent = null;
 
             StartCoroutine(TriggerGameOver());
-            Destroy(currentBlock, 3f);
             currentBlock = null;
             return;
         }
 
+        float tolerance = perfectToleranceFactor * prevWidth;
+        bool isPerfect = absOverhang < tolerance;
 
-        // PERFECT
-        float tolerance = 0.05f * prevWidth;
-        if (absOverhang < tolerance)
+        if (isPerfect)
         {
+            // PERFECT LOGIC
             overlapWidth = prevWidth;
             overhang = 0f;
 
             AudioManager.Instance.PlaySound(AudioManager.Instance.sliceSound);
+
+            PerfectPopup.Spawn(currentBlock.transform.position + Vector3.up * 0.6f);
+            CameraShake.Instance.Shake(0.015f, 0.08f);
+
+            ComboPopup.Spawn(currentBlock.transform.position + Vector3.up * 1.2f, combo);
+
+
+            combo++;
+
+            StartCoroutine(PunchScale(currentBlock));
         }
         else
         {
-            float minAllowed = prevWidth * 0.5f;
-            overlapWidth = Mathf.Clamp(overlapWidth, minAllowed, prevWidth);
+            if (overlapWidth > 0f)
+            {
+                combo++;
+
+                if (combo >= 2)
+                {
+                    ComboPopup.Spawn(
+                        currentBlock.transform.position + Vector3.up * 1.2f,
+                        combo
+                    );
+                }
+            }
+            else
+            {
+                combo = 0;
+            }
         }
+        Debug.Log($"perfect={isPerfect}, overlap={overlapWidth}, combo={combo}");
 
 
         float newCenterX = prevBlock.transform.position.x + (overhang / 2f);
@@ -227,6 +243,15 @@ public class TowerController : MonoBehaviour
         currentBlock = null;
     }
 
+    private IEnumerator PunchScale(GameObject obj)
+    {
+        Vector3 original = obj.transform.localScale;
+
+        obj.transform.localScale = original * 1.15f;
+        yield return new WaitForSeconds(0.05f);
+
+        obj.transform.localScale = original;
+    }
 
     private void PlaceFirstBlock()
     {
@@ -245,12 +270,8 @@ public class TowerController : MonoBehaviour
         currentBlock = null;
     }
 
-
     private void SpawnFallingPieces(GameObject prevBlock, float newCenterX, float overlapWidth)
     {
-        SpriteRenderer currentSR = currentBlock.GetComponentInChildren<SpriteRenderer>();
-        Color blockColor = currentSR != null ? currentSR.color : Color.gray;
-
         float prevWidth = prevBlock.transform.localScale.x;
         float halfPrev = prevWidth * 0.5f;
 
@@ -275,15 +296,13 @@ public class TowerController : MonoBehaviour
         }
     }
 
-
     private void SpawnPiece(float centerX, float width)
     {
         if (width <= 0f) return;
 
         GameObject piece = Instantiate(blockPrefab);
         piece.transform.localScale = new Vector3(width, blockPrefab.transform.localScale.y, blockPrefab.transform.localScale.z);
-        piece.transform.position = new Vector3(centerX, currentBlock.transform.position.y + 0f);
-
+        piece.transform.position = new Vector3(centerX, currentBlock.transform.position.y + 0.6f, 0f);
 
         Rigidbody2D rb = piece.GetComponent<Rigidbody2D>();
         if (rb == null) rb = piece.AddComponent<Rigidbody2D>();
@@ -304,7 +323,6 @@ public class TowerController : MonoBehaviour
         Destroy(piece, 4f);
     }
 
-
     private IEnumerator TriggerGameOver()
     {
         isGameOver = true;
@@ -312,12 +330,12 @@ public class TowerController : MonoBehaviour
         AudioManager.Instance.PlaySound(AudioManager.Instance.gameOverSound);
 
         yield return new WaitForSeconds(0.5f);
+        CameraShake.Instance.Shake(0.07f, 0.15f);
 
         GameManager gm = FindObjectOfType<GameManager>();
         if (gm != null)
             gm.GameOver();
     }
-
 
     public void RestartGame()
     {
