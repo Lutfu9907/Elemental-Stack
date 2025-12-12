@@ -1,30 +1,27 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using TMPro;
 using System.Collections;
 
 public class ComboPopup : MonoBehaviour
 {
-    public float riseDistance = 1f;
+    public float riseDistance = 80f;    
     public float duration = 0.6f;
 
     private CanvasGroup cg;
     private TextMeshProUGUI text;
+    private RectTransform rt;
+
+    private Vector2 startPos;
     private Vector3 startScale;
-    private Vector3 startPos;
 
     void Awake()
     {
         cg = GetComponent<CanvasGroup>();
         text = GetComponentInChildren<TextMeshProUGUI>();
+        rt = GetComponent<RectTransform>();
 
-        cg.alpha = 1f;
-
-        startPos = transform.position;
-        startScale = transform.localScale;
-    }
-    void Start()
-    {
-        Debug.Log("COMBO POPUP INSTANTIATED at " + transform.position);
+        startScale = Vector3.one;
+        transform.localScale = startScale;
     }
 
     public void SetCombo(int combo)
@@ -41,9 +38,12 @@ public class ComboPopup : MonoBehaviour
 
     private IEnumerator AnimRoutine()
     {
+        // Spawn pozisyonunda baÅŸla
+        startPos = rt.anchoredPosition;
+
         float t = 0f;
 
-        // Ýlk ufak patlama efekti
+        // Ä°lk punch-scale (patlama)
         transform.localScale = startScale * 0.8f;
 
         while (t < duration)
@@ -51,11 +51,15 @@ public class ComboPopup : MonoBehaviour
             t += Time.deltaTime;
             float n = t / duration;
 
-            // Scale: hafif büyüme
-            transform.localScale = Vector3.Lerp(startScale * 0.8f, startScale * 1.1f, n);
+            // Punch scale: 0.8 â†’ 1.15 â†’ 1
+            float scaleCurve = n < 0.4f
+                ? Mathf.Lerp(0.8f, 1.15f, n / 0.4f)
+                : Mathf.Lerp(1.15f, 1f, (n - 0.4f) / 0.6f);
 
-            // Yükselme
-            transform.position = startPos + Vector3.up * riseDistance * n;
+            transform.localScale = startScale * scaleCurve;
+
+            // YukarÄ± doÄŸru hareket (UI)
+            rt.anchoredPosition = startPos + Vector2.up * riseDistance * n;
 
             // Fade out
             cg.alpha = 1f - n;
@@ -66,16 +70,32 @@ public class ComboPopup : MonoBehaviour
         Destroy(gameObject);
     }
 
-    public static void Spawn(Vector3 pos, int combo)
+    public static void Spawn(Vector3 worldPos, int combo)
     {
-        GameObject prefab = Resources.Load<GameObject>("ComboPopup");
-        if (prefab == null)
+        Canvas canvas = FindObjectOfType<Canvas>();
+        if (canvas == null)
         {
-            Debug.LogError("Resources/ComboPopup PREFAB bulunamadý!");
+            Debug.LogError("NO CANVAS FOUND!");
             return;
         }
 
-        GameObject go = Instantiate(prefab, pos, Quaternion.identity);
-        go.GetComponent<ComboPopup>().SetCombo(combo);
+        GameObject prefab = Resources.Load<GameObject>("ComboPopup");
+        GameObject popup = Instantiate(prefab, canvas.transform);
+
+        RectTransform rt = popup.GetComponent<RectTransform>();
+
+        Vector3 screenPos = Camera.main.WorldToScreenPoint(worldPos);
+
+        Vector2 uiPos;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvas.transform as RectTransform,
+            screenPos,
+            canvas.worldCamera,
+            out uiPos
+        );
+        uiPos.y += 100f;
+        rt.anchoredPosition = uiPos;
+
+        popup.GetComponent<ComboPopup>().SetCombo(combo);
     }
 }

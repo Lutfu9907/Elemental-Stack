@@ -184,34 +184,16 @@ public class TowerController : MonoBehaviour
             PerfectPopup.Spawn(currentBlock.transform.position + Vector3.up * 0.6f);
             CameraShake.Instance.Shake(0.015f, 0.08f);
 
-            ComboPopup.Spawn(currentBlock.transform.position + Vector3.up * 1.2f, combo);
-
-
             combo++;
+            ComboPopup.Spawn(currentBlock.transform.position + Vector3.up * 0.9f, combo);
 
             StartCoroutine(PunchScale(currentBlock));
+            ComboEffectManager.Instance.PlayPerfectComboEffect(combo);
         }
         else
         {
-            if (overlapWidth > 0f)
-            {
-                combo++;
-
-                if (combo >= 2)
-                {
-                    ComboPopup.Spawn(
-                        currentBlock.transform.position + Vector3.up * 1.2f,
-                        combo
-                    );
-                }
-            }
-            else
-            {
-                combo = 0;
-            }
+            combo = 0;
         }
-        Debug.Log($"perfect={isPerfect}, overlap={overlapWidth}, combo={combo}");
-
 
         float newCenterX = prevBlock.transform.position.x + (overhang / 2f);
         Vector3 newPos = currentBlock.transform.position;
