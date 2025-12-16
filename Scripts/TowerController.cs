@@ -31,6 +31,8 @@ public class TowerController : MonoBehaviour
     private bool isMoving = false;
     private float direction = 1f;
     private bool isGameOver = false;
+    public TextMeshProUGUI scoreText;
+    private ScorePunchEffect scorePunch;
 
     private CameraFollow camFollow;
     public int score = 0;
@@ -43,6 +45,8 @@ public class TowerController : MonoBehaviour
 
         camFollow = Camera.main.GetComponent<CameraFollow>();
         gm = FindObjectOfType<GameManager>();
+
+        scorePunch = scoreText.GetComponent<ScorePunchEffect>();
     }
 
     void Update()
@@ -193,6 +197,7 @@ public class TowerController : MonoBehaviour
         else
         {
             combo = 0;
+            ComboEffectManager.Instance.ResetComboTier();
         }
 
         float newCenterX = prevBlock.transform.position.x + (overhang / 2f);
@@ -221,6 +226,12 @@ public class TowerController : MonoBehaviour
         score++;
         if (gm != null)
             gm.UpdateScore(score);
+
+        if (scorePunch != null)
+        {
+            float punchStrength = Mathf.Clamp(combo * 0.15f, 0.15f, 0.6f);
+            scorePunch.Punch(punchStrength);
+        }
 
         currentBlock = null;
     }

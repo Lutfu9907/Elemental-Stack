@@ -11,6 +11,7 @@ public class ComboEffectManager : MonoBehaviour
     public Image flashImage;               // Canvas → FlashImage
     public TextMeshProUGUI comboPopupText; // Canvas → ComboPopupText
     private bool isPlayingText = false;
+    private int lastShownComboTier = 0;
 
     [Header("Flash Settings")]
     public float flashDuration = 0.25f;
@@ -38,23 +39,45 @@ public class ComboEffectManager : MonoBehaviour
 
     public void PlayPerfectComboEffect(int combo)
     {
-        if (combo < 3) return;
+        int tier = GetComboTier(combo);
 
-        int milestone = 0;
+        if (tier == 0 || tier == lastShownComboTier)
+            return;
 
-        if (combo >= 3 && combo < 5) milestone = 3;
-        else if (combo >= 5 && combo < 10) milestone = 5;
-        else if (combo >= 10 && combo < 15) milestone = 10;
-        else if (combo >= 15) milestone = 15;
-
-        if (milestone <= lastComboMilestone) return; 
-        lastComboMilestone = milestone;
+        lastShownComboTier = tier;
 
         StartCoroutine(FlashScreenRoutine(combo));
-        PlayComboText(combo);
+        PlayComboTextByTier(tier);
+    }
+    private int GetComboTier(int combo)
+    {
+        if (combo >= 15) return 4;
+        if (combo >= 10) return 3;
+        if (combo >= 5) return 2;
+        if (combo >= 3) return 1;
+        return 0;
     }
 
+    private void PlayComboTextByTier(int tier)
+    {
+        switch (tier)
+        {
+            case 1:
+                comboPopupText.text = "GOOD!";
+                break;
+            case 2:
+                comboPopupText.text = "GREAT!";
+                break;
+            case 3:
+                comboPopupText.text = "AMAZING!";
+                break;
+            case 4:
+                comboPopupText.text = "SUPER STACK!";
+                break;
+        }
 
+        StartCoroutine(ComboTextRoutine());
+    }
     private IEnumerator FlashScreenRoutine(int combo)
     {
         float strength = 0.2f;
@@ -78,22 +101,10 @@ public class ComboEffectManager : MonoBehaviour
 
         flashImage.color = new Color(1, 1, 1, 0f);
     }
-    private void PlayComboText(int combo)
+    public void ResetComboTier()
     {
-        if (combo < 3) return;
-
-        if (combo < 5)
-            comboPopupText.text = "GOOD!";
-        else if (combo < 10)
-            comboPopupText.text = "GREAT!";
-        else if (combo < 15)
-            comboPopupText.text = "AMAZING!";
-        else
-            comboPopupText.text = "SUPER STACK!";
-
-        StartCoroutine(ComboTextRoutine());
+        lastShownComboTier = 0;
     }
-
     private IEnumerator ComboTextRoutine()
     {
         comboPopupText.alpha = 1f;
