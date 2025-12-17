@@ -12,6 +12,7 @@ public class GameManager : MonoBehaviour
     [Header("UI")]
     public TextMeshProUGUI scoreText;
     public TextMeshProUGUI highScoreText;
+    public FadeController fade;
 
     [Header("Gameplay")]
     public TowerController tower;
@@ -70,13 +71,15 @@ public class GameManager : MonoBehaviour
 
         Time.timeScale = 0f;
     }
-
     public void RestartGame()
     {
         Time.timeScale = 1f;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-    }
 
+        fade.FadeIn(() =>
+        {
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        });
+    }
     public void QuitGame()
     {
         Application.Quit();
