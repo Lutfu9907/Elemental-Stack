@@ -37,6 +37,7 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
 
     private static bool hasPlayed;
     private float elapsed;
+    private bool jinglePlayed;
     private Vector2[] blockTargets;
     private Vector2 logoStart;
     private TextAnimator ldAnimator;
@@ -80,8 +81,19 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
         // GameManager oyunu Time.timeScale = 0 ile beklettiği için ölçeksiz zaman kullanılır.
         // Açılıştaki yükleme takılması ilk karede saniyelerce zaman gösterebilir; intro atlanmasın diye
         // bir karede en fazla 1/30 sn ilerlenir.
+        // Melodi ilk karede başlar; notalar bloklar yere değdiği anlara denk gelir
+        if (!jinglePlayed)
+        {
+            jinglePlayed = true;
+            if (AudioManager.Instance != null) AudioManager.Instance.PlayIntroJingle();
+        }
+
         elapsed += Mathf.Min(Time.unscaledDeltaTime, MaxFrameStep);
         Evaluate(elapsed);
+
+        // Çıkış başlarken arka plan müziği yavaşça girer
+        if (elapsed >= ExitStart && AudioManager.Instance != null)
+            AudioManager.Instance.StartMusic();
 
         if (elapsed >= ExitStart + ExitDuration)
             gameObject.SetActive(false);
