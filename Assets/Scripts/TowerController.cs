@@ -43,10 +43,13 @@ public class TowerController : MonoBehaviour
             ? transform.GetChild(transform.childCount - 1).position.y + blockHeight
             : 0f;
 
-        camFollow = Camera.main.GetComponent<CameraFollow>();
-        gm = FindObjectOfType<GameManager>();
+        // CameraFollow kameranın kendisinde ya da kameranın bağlı olduğu "rig" objesinde olabilir
+        if (Camera.main != null)
+            camFollow = Camera.main.GetComponentInParent<CameraFollow>();
+        gm = FindFirstObjectByType<GameManager>();
 
-        scorePunch = scoreText.GetComponent<ScorePunchEffect>();
+        if (scoreText != null)
+            scorePunch = scoreText.GetComponent<ScorePunchEffect>();
     }
 
     void Update()
@@ -98,15 +101,14 @@ public class TowerController : MonoBehaviour
     private void CreateNewBlock()
     {
         float spawnX = 0f;
+        Vector3 blockScale = blockPrefab.transform.localScale;
 
         if (transform.childCount > 0)
         {
             GameObject prevBlock = transform.GetChild(transform.childCount - 1).gameObject;
-            float prevWidth = prevBlock.transform.localScale.x;
-
-            Vector3 scale = blockPrefab.transform.localScale;
-            scale.x = prevWidth;
-            blockPrefab.transform.localScale = scale;
+            // Genişlik yeni bloğa verilir; prefab asset'inin kendisi değiştirilmez
+            // (eskiden prefab her oyunda inceliyordu).
+            blockScale.x = prevBlock.transform.localScale.x;
 
             spawnX += Random.Range(-0.15f, 0.15f);
         }
@@ -117,6 +119,7 @@ public class TowerController : MonoBehaviour
             spawnPos.x += Random.Range(-0.3f, 0.3f);
 
         currentBlock = Instantiate(blockPrefab, spawnPos, Quaternion.identity);
+        currentBlock.transform.localScale = blockScale;
 
         Rigidbody2D rb = currentBlock.GetComponent<Rigidbody2D>();
         if (rb != null)
@@ -294,6 +297,16 @@ public class TowerController : MonoBehaviour
         if (width <= 0f) return;
 
         GameObject piece = Instantiate(blockPrefab);
+
+        // Düşen parça, kesildiği bloğun rengini taşısın
+        Block pieceBlock = piece.GetComponent<Block>();
+        Block sourceBlock = currentBlock.GetComponent<Block>();
+        if (pieceBlock != null && sourceBlock != null)
+        {
+            pieceBlock.elementType = sourceBlock.elementType;
+            pieceBlock.ApplyElementColor();
+        }
+
         piece.transform.localScale = new Vector3(width, blockPrefab.transform.localScale.y, blockPrefab.transform.localScale.z);
         piece.transform.position = new Vector3(centerX, currentBlock.transform.position.y + 0.6f, 0f);
 
@@ -325,7 +338,8 @@ public class TowerController : MonoBehaviour
         yield return new WaitForSeconds(0.5f);
         CameraShake.Instance.Shake(0.07f, 0.15f);
 
-        GameManager gm = FindObjectOfType<GameManager>();
+        if (gm == null)
+            gm = FindFirstObjectByType<GameManager>();
         if (gm != null)
             gm.GameOver();
     }

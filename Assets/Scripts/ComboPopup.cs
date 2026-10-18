@@ -72,7 +72,7 @@ public class ComboPopup : MonoBehaviour
 
     public static void Spawn(Vector3 worldPos, int combo)
     {
-        Canvas canvas = FindObjectOfType<Canvas>();
+        Canvas canvas = FindFirstObjectByType<Canvas>();
         if (canvas == null)
         {
             Debug.LogError("NO CANVAS FOUND!");
@@ -80,6 +80,11 @@ public class ComboPopup : MonoBehaviour
         }
 
         GameObject prefab = Resources.Load<GameObject>("ComboPopup");
+        if (prefab == null)
+        {
+            Debug.LogError("ComboPopup prefab missing in Resources!");
+            return;
+        }
         GameObject popup = Instantiate(prefab, canvas.transform);
 
         RectTransform rt = popup.GetComponent<RectTransform>();
