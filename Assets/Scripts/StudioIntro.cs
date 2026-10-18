@@ -29,7 +29,11 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
     private const float SkipAllowedAfter = 3.4f;   // logo tamamen oluşmadan dokunmak intro'yu geçmesin
     private const float ExitStart = 4.5f;
     private const float ExitDuration = 1.3f;        // toplam ~5,8 sn
-    private const float MaxFrameStep = 1f / 30f;
+    // Ses ve animasyon eşitlemesi
+    private const float UnstableFrameTime = 0.1f;  // bundan uzun kare "takılma" sayılır
+    private const int StableFramesNeeded = 3;
+    private const float AudioLead = 0.1f;          // melodiyi zamanlamak için küçük bir pay
+    private const float MaxClockDrift = 0.05f;
 
     private const float BlockDropHeight = 420f;
     private const float AccentLineWidth = 440f;
@@ -37,7 +41,10 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
 
     private static bool hasPlayed;
     private float elapsed;
-    private bool jinglePlayed;
+    private bool started;
+    private int stableFrames;
+    private double startDspTime;
+    private float skipOffset;
     private Vector2[] blockTargets;
     private Vector2 logoStart;
     private TextAnimator ldAnimator;
@@ -78,18 +85,30 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
 
     void Update()
     {
-        // GameManager oyunu Time.timeScale = 0 ile beklettiği için ölçeksiz zaman kullanılır.
-        // Açılıştaki yükleme takılması ilk karede saniyelerce zaman gösterebilir; intro atlanmasın diye
-        // bir karede en fazla 1/30 sn ilerlenir.
-        // Melodi ilk karede başlar; notalar bloklar yere değdiği anlara denk gelir
-        if (!jinglePlayed)
+        if (!started)
         {
-            jinglePlayed = true;
-            if (AudioManager.Instance != null) AudioManager.Instance.PlayIntroJingle();
+            // Açılıştan hemen sonraki kareler saniyelerce takılabilir (Unity'nin Play'e geçişi,
+            // telefonda uygulamanın açılışı). Kareler düzgün akana kadar intro boş ekranda bekler.
+            stableFrames = Time.unscaledDeltaTime < UnstableFrameTime ? stableFrames + 1 : 0;
+            if (stableFrames < StableFramesNeeded)
+                return;
+
+            // Melodi kısa bir gecikmeyle ses saatinde zamanlanır; animasyon da aynı saati izler
+            started = true;
+            startDspTime = AudioSettings.dspTime + AudioLead;
+            elapsed = -AudioLead;
+            if (AudioManager.Instance != null)
+                AudioManager.Instance.PlayIntroJingle(startDspTime);
         }
 
-        elapsed += Mathf.Min(Time.unscaledDeltaTime, MaxFrameStep);
-        Evaluate(elapsed);
+        // Animasyon kare süresiyle akıcı ilerler; arada takılma olursa ses saatine geri oturur,
+        // böylece notalar ile bloklar hep aynı anda kalır.
+        elapsed += Time.unscaledDeltaTime;
+        float audioClock = (float)(AudioSettings.dspTime - startDspTime) + skipOffset;
+        if (Mathf.Abs(elapsed - audioClock) > MaxClockDrift)
+            elapsed = audioClock;
+
+        Evaluate(Mathf.Max(0f, elapsed));
 
         // Çıkış başlarken arka plan müziği yavaşça girer
         if (elapsed >= ExitStart && AudioManager.Instance != null)
@@ -102,7 +121,10 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
     public void OnPointerDown(PointerEventData eventData)
     {
         if (elapsed >= SkipAllowedAfter && elapsed < ExitStart)
+        {
+            skipOffset += ExitStart - elapsed;   // ses saatiyle eşitleme atlamayı geri almasın
             elapsed = ExitStart;
+        }
     }
 
     private void Evaluate(float t)

@@ -24,6 +24,7 @@ public class AudioManager : MonoBehaviour
     private AudioSource audioSource;
     private AudioSource perfectSource;  // ton değiştirmek diğer sesleri etkilemesin diye ayrı kaynak
     private AudioSource musicSource;
+    private AudioSource jingleSource;
     private bool musicStarted;
 
     // Müzik ve intro melodisi açık mı (kalıcı ayar); efekt sesleri bundan etkilenmez
@@ -70,10 +71,18 @@ public class AudioManager : MonoBehaviour
         musicSource.volume = Mathf.MoveTowards(musicSource.volume, musicVolume, step);
     }
 
-    public void PlayIntroJingle()
+    // Melodiyi ses saatinde tam verilen ana zamanlar (AudioSettings.dspTime); intro animasyonu da bu saati izler
+    public void PlayIntroJingle(double dspTime)
     {
-        if (introJingle != null && audioSource != null && MusicEnabled)
-            audioSource.PlayOneShot(introJingle);
+        if (introJingle == null || !MusicEnabled) return;
+
+        if (jingleSource == null)
+        {
+            jingleSource = gameObject.AddComponent<AudioSource>();
+            jingleSource.playOnAwake = false;
+        }
+        jingleSource.clip = introJingle;
+        jingleSource.PlayScheduled(dspTime);
     }
 
     // Intro bitince bir kez çağrılır; sahne yeniden yüklense de müzik kesilmeden devam eder
