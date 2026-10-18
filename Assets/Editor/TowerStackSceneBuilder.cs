@@ -26,6 +26,7 @@ public static class TowerStackSceneBuilder
     private const string MaterialsFolder = "Assets/Materials";
     private const string BlockMaterialPath = MaterialsFolder + "/Block.mat";
     private const string BackgroundMaterialPath = MaterialsFolder + "/Background.mat";
+    private const string RippleMaterialPath = MaterialsFolder + "/Ripple.mat";
     private const string PipelinePath = "Assets/Settings/URP-Mobile3D.asset";
     private const string RendererPath = "Assets/Settings/URP-Mobile3D_Renderer.asset";
     private const string PostProcessDataPath = "Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset";
@@ -75,6 +76,9 @@ public static class TowerStackSceneBuilder
         Material blockMaterial = CreateMaterial(BlockMaterialPath, "Universal Render Pipeline/Lit");
         blockMaterial.SetFloat("_Smoothness", 0.15f);
         Material backgroundMaterial = CreateMaterial(BackgroundMaterialPath, "Universal Render Pipeline/Unlit");
+        // Unlit, vertex-coloured and transparent: the perfect ripple fades by its line colour
+        Material rippleMaterial = CreateMaterial(RippleMaterialPath, "Sprites/Default");
+        SoundSynth.Clips sounds = SoundSynth.GenerateAll();
         GameObject blockPrefab = CreateBlockPrefab(blockMaterial);
 
         // UI style A: Fredoka font, rounded pills, navy text on a pastel sky
@@ -85,6 +89,7 @@ public static class TowerStackSceneBuilder
 
         SetupLighting();
         TowerController tower = CreateTower(blockPrefab);
+        tower.rippleMaterial = rippleMaterial;
         CreateCamera(backgroundMaterial, tower);
 
         // ---------- UI ----------
@@ -206,7 +211,12 @@ public static class TowerStackSceneBuilder
         var audioGo = new GameObject("AudioManager");
         AudioSource audioSource = audioGo.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
-        audioGo.AddComponent<AudioManager>();
+        AudioManager audio = audioGo.AddComponent<AudioManager>();
+        audio.placeBlockSound = sounds.place;
+        audio.sliceSound = sounds.slice;
+        audio.perfectSound = sounds.perfect;
+        audio.gameOverSound = sounds.gameOver;
+        audio.buttonClickSound = sounds.button;
 
         var comboGo = new GameObject("ComboEffectManager");
         ComboEffectManager combo = comboGo.AddComponent<ComboEffectManager>();

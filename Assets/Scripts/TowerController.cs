@@ -19,6 +19,10 @@ public class TowerController : MonoBehaviour
     [Header("Perfect")]
     [Tooltip("Bu mesafeden (dünya birimi) az kayma Perfect sayılır")]
     public float perfectTolerance = 0.12f;
+    [Tooltip("Bu kadar perfect üst üste gelince blok her perfect'te biraz büyür (ödül)")]
+    public int perfectGrowStreak = 5;
+    public float perfectGrowStep = 0.15f;
+    public Material rippleMaterial;
     private int combo = 0;
 
     [Header("Falling Pieces")]
@@ -35,6 +39,7 @@ public class TowerController : MonoBehaviour
     private Transform topBlock;     // kulenin en üstündeki yerleşmiş blok
     private float topSurfaceY;      // topBlock'un üst yüzeyi
     private Vector3 topScale;       // topBlock'un gerçek ölçüsü (punch efektinden etkilenmez)
+    private Vector3 fullScale;      // taban bloğunun ölçüsü; perfect ödülü bloğu en fazla buna kadar büyütür
     private Transform currentBlock; // kayan blok
     private bool moveOnX = true;
     private float direction = 1f;
@@ -47,6 +52,7 @@ public class TowerController : MonoBehaviour
         {
             topBlock = transform.GetChild(transform.childCount - 1);
             topScale = topBlock.localScale;
+            fullScale = topScale;
             topSurfaceY = topBlock.position.y + topScale.y * 0.5f;
         }
         else
@@ -154,17 +160,34 @@ public class TowerController : MonoBehaviour
             SetAxis(ref pos, AxisValue(topBlock.position));
             block.position = pos;
 
-            AudioManager.Instance.PlaySound(AudioManager.Instance.sliceSound);
-
             combo++;
+
+            // Uzun perfect serisi ödülü: blok, taban boyutunu geçmeden biraz büyür
+            if (combo >= perfectGrowStreak)
+            {
+                scale.x = Mathf.Min(scale.x + perfectGrowStep, fullScale.x);
+                scale.z = Mathf.Min(scale.z + perfectGrowStep, fullScale.z);
+                block.localScale = scale;
+            }
+
+            AudioManager.Instance.PlayPerfect(combo);
+            Haptics.Medium();
             PerfectPopup.Spawn(pos + Vector3.up * 0.6f, combo);
             CameraShake.Instance.Shake(0.03f, 0.08f);
             ComboEffectManager.Instance.PlayPerfectComboEffect(combo);
+
+            Vector3 rippleCenter = new Vector3(pos.x, pos.y - blockHeight * 0.5f + 0.01f, pos.z);
+            Vector2 rippleSize = new Vector2(scale.x, scale.z);
+            PerfectRipple.Spawn(rippleCenter, rippleSize, rippleMaterial, Color.white);
+            if (combo >= 3)
+                PerfectRipple.Spawn(rippleCenter, rippleSize, rippleMaterial, Color.white, 0.12f);
         }
         else
         {
             combo = 0;
             ComboEffectManager.Instance.ResetComboTier();
+            AudioManager.Instance.PlaySound(AudioManager.Instance.sliceSound);
+            Haptics.Light();
 
             float newCenter = AxisValue(topBlock.position) + delta * 0.5f;
             float pieceSize = Mathf.Abs(delta);
@@ -262,6 +285,7 @@ public class TowerController : MonoBehaviour
         isGameOver = true;
 
         AudioManager.Instance.PlaySound(AudioManager.Instance.gameOverSound);
+        Haptics.Heavy();
 
         yield return new WaitForSeconds(0.5f);
         CameraShake.Instance.Shake(0.1f, 0.15f);
