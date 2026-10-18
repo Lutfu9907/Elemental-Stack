@@ -2,46 +2,57 @@
 using UnityEngine;
 using TMPro;
 
+// 3D kule mekaniği: blok sırayla X ve Z ekseninde kayar, dokununca durur;
+// alttaki bloğun dışında kalan kısım kesilip fizikle düşer.
 public class TowerController : MonoBehaviour
 {
     [Header("Block Settings")]
     public GameObject blockPrefab;
-    public float blockHeight = 1f;
+    public float blockHeight = 0.5f;
 
     [Header("Movement")]
-    public float moveSpeed = 2f;
-    public float speedIncreasePerScore = 0.1f;
-    public float moveRange = 3f;
+    public float moveSpeed = 3f;
+    public float speedIncreasePerScore = 0.05f;
+    public float maxMoveSpeed = 7f;
+    public float moveRange = 2.6f;
 
-    [Header("Difficulty")]
-    public float missChance = 0.08f;
-
-    [Header("Perfect Popup")]
-    public float perfectToleranceFactor = 0.03f;
+    [Header("Perfect")]
+    [Tooltip("Bu mesafeden (dünya birimi) az kayma Perfect sayılır")]
+    public float perfectTolerance = 0.12f;
     private int combo = 0;
 
-    [Header("References")]
-    public Transform spawnPoint;
+    [Header("Falling Pieces")]
+    public float pieceLifetime = 3f;
 
     [HideInInspector] public bool gameStarted = false;
+    public TextMeshProUGUI scoreText;
+    public int score = 0;
 
     private GameManager gm;
-    private GameObject currentBlock;
-    private float nextY = 0f;
-    private bool isMoving = false;
+    private ScorePunchEffect scorePunch;
+    private CameraFollow camFollow;
+
+    private Transform topBlock;     // kulenin en üstündeki yerleşmiş blok
+    private float topSurfaceY;      // topBlock'un üst yüzeyi
+    private Vector3 topScale;       // topBlock'un gerçek ölçüsü (punch efektinden etkilenmez)
+    private Transform currentBlock; // kayan blok
+    private bool moveOnX = true;
     private float direction = 1f;
     private bool isGameOver = false;
-    public TextMeshProUGUI scoreText;
-    private ScorePunchEffect scorePunch;
-
-    private CameraFollow camFollow;
-    public int score = 0;
 
     void Start()
     {
-        nextY = transform.childCount > 0
-            ? transform.GetChild(transform.childCount - 1).position.y + blockHeight
-            : 0f;
+        // Sahne kurucu kulenin altına bir taban bloğu koyar
+        if (transform.childCount > 0)
+        {
+            topBlock = transform.GetChild(transform.childCount - 1);
+            topScale = topBlock.localScale;
+            topSurfaceY = topBlock.position.y + topScale.y * 0.5f;
+        }
+        else
+        {
+            Debug.LogError("TowerController: taban bloğu yok. Tower Stack > Build Game Scene ile sahneyi yeniden kur.");
+        }
 
         // CameraFollow kameranın kendisinde ya da kameranın bağlı olduğu "rig" objesinde olabilir
         if (Camera.main != null)
@@ -54,17 +65,18 @@ public class TowerController : MonoBehaviour
 
     void Update()
     {
-        if (!gameStarted || isGameOver) return;
+        if (!gameStarted || isGameOver || currentBlock == null) return;
 
-        if (currentBlock != null && isMoving)
-        {
-            currentBlock.transform.position +=
-                Vector3.right * direction *
-                (moveSpeed + score * speedIncreasePerScore) * Time.deltaTime;
+        float speed = Mathf.Min(maxMoveSpeed, moveSpeed + score * speedIncreasePerScore);
+        Vector3 pos = currentBlock.position;
+        float center = AxisValue(topBlock.position);
+        float offset = AxisValue(pos) - center + direction * speed * Time.deltaTime;
 
-            if (currentBlock.transform.position.x > moveRange) direction = -1f;
-            if (currentBlock.transform.position.x < -moveRange) direction = 1f;
-        }
+        if (offset > moveRange) { offset = moveRange; direction = -1f; }
+        else if (offset < -moveRange) { offset = -moveRange; direction = 1f; }
+
+        SetAxis(ref pos, center + offset);
+        currentBlock.position = pos;
         // Dokunmalar TapInputArea üzerinden AddOrDropBlock'u çağırır
     }
 
@@ -73,154 +85,108 @@ public class TowerController : MonoBehaviour
         gameStarted = true;
     }
 
-    public void AddOrDropBlock()
-    {
-        if (!gameStarted || isGameOver) return;
-
-        if (currentBlock == null)
-        {
-            CreateNewBlock();
-        }
-        else
-        {
-            DropCurrentBlock();
-            CreateNewBlock();
-        }
-    }
-
     public void StartTower()
     {
         gameStarted = true;
         CreateNewBlock();
     }
 
+    public void AddOrDropBlock()
+    {
+        if (!gameStarted || isGameOver || topBlock == null) return;
+
+        if (currentBlock != null)
+            DropCurrentBlock();
+
+        if (!isGameOver)
+            CreateNewBlock();
+    }
+
     private void CreateNewBlock()
     {
-        float spawnX = 0f;
-        Vector3 blockScale = blockPrefab.transform.localScale;
+        // Eksen her katta değişir: X, Z, X, Z...
+        moveOnX = score % 2 == 0;
+        direction = Random.value < 0.5f ? -1f : 1f;
 
-        if (transform.childCount > 0)
-        {
-            GameObject prevBlock = transform.GetChild(transform.childCount - 1).gameObject;
-            // Genişlik yeni bloğa verilir; prefab asset'inin kendisi değiştirilmez
-            // (eskiden prefab her oyunda inceliyordu).
-            blockScale.x = prevBlock.transform.localScale.x;
+        Vector3 pos = topBlock.position;
+        pos.y = topSurfaceY + blockHeight * 0.5f;
+        SetAxis(ref pos, AxisValue(pos) - direction * moveRange);
 
-            spawnX += Random.Range(-0.15f, 0.15f);
-        }
+        GameObject go = Instantiate(blockPrefab, pos, Quaternion.identity);
+        go.transform.localScale = new Vector3(topScale.x, blockHeight, topScale.z);
 
-        Vector3 spawnPos = new Vector3(spawnX, nextY, 0f);
-
-        if (Random.value < missChance)
-            spawnPos.x += Random.Range(-0.3f, 0.3f);
-
-        currentBlock = Instantiate(blockPrefab, spawnPos, Quaternion.identity);
-        currentBlock.transform.localScale = blockScale;
-
-        Rigidbody2D rb = currentBlock.GetComponent<Rigidbody2D>();
-        if (rb != null)
-        {
-            rb.bodyType = RigidbodyType2D.Kinematic;
-            rb.gravityScale = 0f;
-        }
-
-        Block blockScript = currentBlock.GetComponent<Block>();
+        Block blockScript = go.GetComponent<Block>();
         if (blockScript != null)
         {
             blockScript.elementType = (Block.BlockElementType)Random.Range(0, 4);
             blockScript.ApplyElementColor();
         }
 
-        if (camFollow != null)
-            camFollow.target = currentBlock.transform;
+        currentBlock = go.transform;
 
-        isMoving = true;
-        direction = Random.value < 0.5f ? -1f : 1f;
+        if (camFollow != null)
+            camFollow.target = currentBlock;
     }
 
     private void DropCurrentBlock()
     {
-        if (!isMoving || currentBlock == null) return;
-        isMoving = false;
+        Transform block = currentBlock;
+        currentBlock = null;
 
-        GameObject prevBlock = transform.childCount > 0
-            ? transform.GetChild(transform.childCount - 1).gameObject
-            : null;
+        float delta = AxisValue(block.position) - AxisValue(topBlock.position);
+        float topSize = AxisValue(topScale);
+        float overlap = topSize - Mathf.Abs(delta);
 
-        if (prevBlock == null)
+        if (overlap <= 0f)
         {
-            AudioManager.Instance.PlaySound(AudioManager.Instance.placeBlockSound);
-            PlaceFirstBlock();
-            return;
-        }
-
-        float prevWidth = prevBlock.transform.localScale.x;
-        float overhang = currentBlock.transform.position.x - prevBlock.transform.position.x;
-        float absOverhang = Mathf.Abs(overhang);
-        float overlapWidth = Mathf.Max(0f, prevWidth - absOverhang);
-
-        if (overlapWidth <= 0f)
-        {
-            Rigidbody2D rbMiss = currentBlock.GetComponent<Rigidbody2D>();
-            if (rbMiss == null) rbMiss = currentBlock.AddComponent<Rigidbody2D>();
-            rbMiss.bodyType = RigidbodyType2D.Dynamic;
-            rbMiss.gravityScale = 3f;
-            rbMiss.angularVelocity = Random.Range(-200f, 200f);
-            currentBlock.transform.parent = null;
-
+            // Tamamen ıskaladı: blok düşer, oyun biter
+            MakeFalling(block.gameObject, delta);
             StartCoroutine(TriggerGameOver());
-            currentBlock = null;
             return;
         }
 
-        float tolerance = perfectToleranceFactor * prevWidth;
-        bool isPerfect = absOverhang < tolerance;
+        Vector3 pos = block.position;
+        Vector3 scale = block.localScale;
+        bool isPerfect = Mathf.Abs(delta) < perfectTolerance;
 
         if (isPerfect)
         {
-            // PERFECT LOGIC
-            overlapWidth = prevWidth;
-            overhang = 0f;
+            SetAxis(ref pos, AxisValue(topBlock.position));
+            block.position = pos;
 
             AudioManager.Instance.PlaySound(AudioManager.Instance.sliceSound);
 
-            PerfectPopup.Spawn(currentBlock.transform.position + Vector3.up * 0.6f);
-            CameraShake.Instance.Shake(0.015f, 0.08f);
-
             combo++;
-            ComboPopup.Spawn(currentBlock.transform.position + Vector3.up * 0.9f, combo);
-
-            StartCoroutine(PunchScale(currentBlock));
+            PerfectPopup.Spawn(pos + Vector3.up * 0.6f);
+            ComboPopup.Spawn(pos + Vector3.up * 0.9f, combo);
+            CameraShake.Instance.Shake(0.03f, 0.08f);
             ComboEffectManager.Instance.PlayPerfectComboEffect(combo);
         }
         else
         {
             combo = 0;
             ComboEffectManager.Instance.ResetComboTier();
+
+            float newCenter = AxisValue(topBlock.position) + delta * 0.5f;
+            float pieceSize = Mathf.Abs(delta);
+            float pieceCenter = newCenter + Mathf.Sign(delta) * (overlap + pieceSize) * 0.5f;
+            SpawnPiece(block, pieceCenter, pieceSize, delta);
+
+            SetAxis(ref pos, newCenter);
+            SetAxis(ref scale, overlap);
+            block.position = pos;
+            block.localScale = scale;
         }
-
-        float newCenterX = prevBlock.transform.position.x + (overhang / 2f);
-        Vector3 newPos = currentBlock.transform.position;
-        newPos.x = newCenterX;
-        newPos.y = prevBlock.transform.position.y + blockHeight;
-        currentBlock.transform.position = newPos;
-
-        Vector3 newScale = currentBlock.transform.localScale;
-        newScale.x = overlapWidth;
-        currentBlock.transform.localScale = newScale;
 
         AudioManager.Instance.PlaySound(AudioManager.Instance.placeBlockSound);
 
-        SpawnFallingPieces(prevBlock, newCenterX, overlapWidth);
+        block.SetParent(transform, true);
+        topBlock = block;
+        topScale = scale;
+        topSurfaceY += blockHeight;
 
-        Rigidbody2D rbBlock = currentBlock.GetComponent<Rigidbody2D>();
-        if (rbBlock == null) rbBlock = currentBlock.AddComponent<Rigidbody2D>();
-        rbBlock.bodyType = RigidbodyType2D.Kinematic;
-        rbBlock.gravityScale = 0f;
-
-        currentBlock.transform.parent = transform;
-
-        nextY = newPos.y + blockHeight;
+        if (isPerfect)
+            StartCoroutine(PunchScale(block));
 
         score++;
         if (gm != null)
@@ -231,98 +197,65 @@ public class TowerController : MonoBehaviour
             float punchStrength = Mathf.Clamp(combo * 0.15f, 0.15f, 0.6f);
             scorePunch.Punch(punchStrength);
         }
-
-        currentBlock = null;
     }
 
-    private IEnumerator PunchScale(GameObject obj)
+    private void SpawnPiece(Transform source, float center, float size, float delta)
     {
-        Vector3 original = obj.transform.localScale;
-
-        obj.transform.localScale = original * 1.15f;
-        yield return new WaitForSeconds(0.05f);
-
-        obj.transform.localScale = original;
-    }
-
-    private void PlaceFirstBlock()
-    {
-        Rigidbody2D rb = currentBlock.GetComponent<Rigidbody2D>();
-        if (rb == null) rb = currentBlock.AddComponent<Rigidbody2D>();
-
-        rb.bodyType = RigidbodyType2D.Kinematic;
-        rb.gravityScale = 0f;
-
-        currentBlock.transform.parent = transform;
-
-        nextY = currentBlock.transform.position.y + blockHeight;
-        score++;
-        gm.UpdateScore(score);
-
-        currentBlock = null;
-    }
-
-    private void SpawnFallingPieces(GameObject prevBlock, float newCenterX, float overlapWidth)
-    {
-        float prevWidth = prevBlock.transform.localScale.x;
-        float halfPrev = prevWidth * 0.5f;
-
-        float prevLeft = prevBlock.transform.position.x - halfPrev;
-        float prevRight = prevBlock.transform.position.x + halfPrev;
-
-        float overlapLeft = newCenterX - (overlapWidth * 0.5f);
-        float overlapRight = newCenterX + (overlapWidth * 0.5f);
-
-        if (overlapLeft > prevLeft + 0.001f)
-        {
-            float leftWidth = overlapLeft - prevLeft;
-            float leftCenter = (prevLeft + overlapLeft) * 0.5f;
-            SpawnPiece(leftCenter, leftWidth);
-        }
-
-        if (overlapRight < prevRight - 0.001f)
-        {
-            float rightWidth = prevRight - overlapRight;
-            float rightCenter = (overlapRight + prevRight) * 0.5f;
-            SpawnPiece(rightCenter, rightWidth);
-        }
-    }
-
-    private void SpawnPiece(float centerX, float width)
-    {
-        if (width <= 0f) return;
+        if (size <= 0.001f) return;
 
         GameObject piece = Instantiate(blockPrefab);
 
         // Düşen parça, kesildiği bloğun rengini taşısın
         Block pieceBlock = piece.GetComponent<Block>();
-        Block sourceBlock = currentBlock.GetComponent<Block>();
+        Block sourceBlock = source.GetComponent<Block>();
         if (pieceBlock != null && sourceBlock != null)
         {
             pieceBlock.elementType = sourceBlock.elementType;
             pieceBlock.ApplyElementColor();
         }
 
-        piece.transform.localScale = new Vector3(width, blockPrefab.transform.localScale.y, blockPrefab.transform.localScale.z);
-        piece.transform.position = new Vector3(centerX, currentBlock.transform.position.y + 0.6f, 0f);
+        Vector3 pos = source.position;
+        Vector3 scale = source.localScale;
+        SetAxis(ref pos, center);
+        SetAxis(ref scale, size);
+        piece.transform.position = pos;
+        piece.transform.localScale = scale;
 
-        Rigidbody2D rb = piece.GetComponent<Rigidbody2D>();
-        if (rb == null) rb = piece.AddComponent<Rigidbody2D>();
-        rb.bodyType = RigidbodyType2D.Dynamic;
-        rb.gravityScale = 3f;
-        rb.angularVelocity = Random.Range(-200f, 200f);
+        MakeFalling(piece, delta);
+        Destroy(piece, pieceLifetime);
+    }
 
-        BoxCollider2D col = piece.GetComponent<BoxCollider2D>();
-        if (col == null) col = piece.AddComponent<BoxCollider2D>();
+    private void MakeFalling(GameObject go, float delta)
+    {
+        Rigidbody rb = go.GetComponent<Rigidbody>();
+        if (rb == null) rb = go.AddComponent<Rigidbody>();
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
 
-        foreach (Transform child in transform)
-        {
-            Collider2D childCol = child.GetComponent<Collider2D>();
-            if (childCol != null)
-                Physics2D.IgnoreCollision(col, childCol, true);
-        }
+        // Kesildiği yönde hafifçe itilip dönerek düşsün
+        Vector3 push = moveOnX ? Vector3.right : Vector3.forward;
+        rb.linearVelocity = push * Mathf.Sign(delta) * 0.8f;
+        rb.angularVelocity = Random.insideUnitSphere * 2f;
 
-        Destroy(piece, 4f);
+        go.transform.SetParent(null, true);
+    }
+
+    private IEnumerator PunchScale(Transform block)
+    {
+        Vector3 original = block.localScale;
+        block.localScale = new Vector3(original.x * 1.06f, original.y, original.z * 1.06f);
+        yield return new WaitForSeconds(0.06f);
+        block.localScale = original;
+    }
+
+    private float AxisValue(Vector3 v)
+    {
+        return moveOnX ? v.x : v.z;
+    }
+
+    private void SetAxis(ref Vector3 v, float value)
+    {
+        if (moveOnX) v.x = value;
+        else v.z = value;
     }
 
     private IEnumerator TriggerGameOver()
@@ -332,13 +265,14 @@ public class TowerController : MonoBehaviour
         AudioManager.Instance.PlaySound(AudioManager.Instance.gameOverSound);
 
         yield return new WaitForSeconds(0.5f);
-        CameraShake.Instance.Shake(0.07f, 0.15f);
+        CameraShake.Instance.Shake(0.1f, 0.15f);
 
         if (gm == null)
             gm = FindFirstObjectByType<GameManager>();
         if (gm != null)
             gm.GameOver();
     }
+
     public void RestartGame()
     {
         isGameOver = false;
