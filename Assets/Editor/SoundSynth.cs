@@ -19,6 +19,8 @@ public static class SoundSynth
         public AudioClip slice;
         public AudioClip gameOver;
         public AudioClip button;
+        public AudioClip introJingle;
+        public AudioClip music;
     }
 
     public static Clips GenerateAll()
@@ -31,7 +33,162 @@ public static class SoundSynth
             slice = Save("Slice", Slice()),
             gameOver = Save("GameOver", GameOver()),
             button = Save("Button", Button()),
+            introJingle = Save("IntroJingle", IntroJingle()),
+            music = Save("MusicLoop", MusicLoop(), true),
         };
+    }
+
+    // ------------------------------------------------------------------ music
+
+    // Plays under the LD Games intro: one marimba note as each block lands,
+    // a warm chord when "LD" appears and quick sparkles as "GAMES" rises.
+    // Times match the constants in StudioIntro.
+    private static float[] IntroJingle()
+    {
+        var buffer = new float[(int)(4f * SampleRate)];
+        AddMallet(buffer, 0.72f, Midi(72), 0.5f, 6f);   // C5
+        AddMallet(buffer, 1.02f, Midi(76), 0.5f, 6f);   // E5
+        AddMallet(buffer, 1.32f, Midi(79), 0.5f, 6f);   // G5
+        foreach (int note in new[] { 60, 64, 67, 72 })  // C major chord
+            AddBell(buffer, 1.72f, Midi(note), 0.3f, 1.6f);
+        int[] sparkle = { 88, 91, 93, 96, 98 };         // E6 G6 A6 C7 D7
+        for (int i = 0; i < sparkle.Length; i++)
+            AddMallet(buffer, 2.6f + i * 0.09f, Midi(sparkle[i]), 0.12f, 14f);
+        return Finish(buffer, 0.8f, false);
+    }
+
+    // Calm 90 BPM loop (C - Am - F - G, twice): soft pads, a gentle bass,
+    // marimba arpeggios and a quiet shaker. The tail is folded back onto the
+    // start so it loops without a gap.
+    private static float[] MusicLoop()
+    {
+        const float beat = 60f / 90f;
+        const float bar = beat * 4f;
+        const int bars = 8;
+        int[][] chords =
+        {
+            new[] { 48, 60, 64, 67 },   // C
+            new[] { 45, 57, 60, 64 },   // Am
+            new[] { 41, 53, 57, 60 },   // F
+            new[] { 43, 55, 59, 62 },   // G
+        };
+        int[] pattern = { 1, 2, 3, 2, 4, 3, 2, 3 };
+        var rng = new System.Random(7);
+
+        float length = bars * bar;
+        var buffer = new float[(int)((length + 3f) * SampleRate)];
+        for (int b = 0; b < bars; b++)
+        {
+            int[] chord = chords[b % chords.Length];
+            float start = b * bar;
+
+            for (int i = 1; i < 4; i++)
+                AddPad(buffer, start, bar + 0.6f, Midi(chord[i]), 0.09f);
+
+            AddBass(buffer, start, Midi(chord[0]), 0.35f);
+            AddBass(buffer, start + 2f * beat, Midi(chord[0]), 0.25f);
+
+            for (int s = 0; s < 8; s++)
+            {
+                int idx = pattern[s];
+                int note = idx == 4 ? chord[1] + 24 : chord[idx] + 12;
+                if (b >= 4 && s % 4 == 3)
+                    note += 12;   // second half: a little lift
+                float velocity = (s % 2 == 0 ? 0.16f : 0.11f) * (0.9f + 0.2f * (float)rng.NextDouble());
+                AddMallet(buffer, start + s * beat * 0.5f, Midi(note), velocity, 9f);
+            }
+
+            for (int s = 0; s < 4; s++)
+                AddShaker(buffer, start + (s + 0.5f) * beat, 0.03f, rng);
+        }
+
+        int loopLength = (int)(length * SampleRate);
+        for (int i = loopLength; i < buffer.Length; i++)
+            buffer[i - loopLength] += buffer[i];
+        var loop = new float[loopLength];
+        Array.Copy(buffer, loop, loopLength);
+        return Finish(loop, 0.7f, true);
+    }
+
+    private static float Midi(int note) => 440f * Mathf.Pow(2f, (note - 69) / 12f);
+
+    private static void AddMallet(float[] buffer, float start, float freq, float amp, float decay)
+    {
+        AddVoice(buffer, start, 6f / decay, t =>
+        {
+            float w = 2f * Mathf.PI * freq * t;
+            float attack = Mathf.Clamp01(t / 0.003f);
+            float tone = Mathf.Sin(w) + 0.25f * Mathf.Sin(4f * w) * Mathf.Exp(-t * 30f) + 0.15f * Mathf.Sin(2f * w) * Mathf.Exp(-t * 12f);
+            return attack * tone * Mathf.Exp(-t * decay) * amp;
+        });
+    }
+
+    private static void AddBell(float[] buffer, float start, float freq, float amp, float decay)
+    {
+        AddVoice(buffer, start, 6f / decay, t =>
+        {
+            float w = 2f * Mathf.PI * freq * t;
+            float attack = Mathf.Clamp01(t / 0.02f);
+            float tone = Mathf.Sin(w) + 0.5f * Mathf.Sin(2.01f * w) * Mathf.Exp(-t * 2f) + 0.2f * Mathf.Sin(3.98f * w) * Mathf.Exp(-t * 4f);
+            return attack * tone * Mathf.Exp(-t * decay) * amp;
+        });
+    }
+
+    private static void AddPad(float[] buffer, float start, float duration, float freq, float amp)
+    {
+        AddVoice(buffer, start, duration, t =>
+        {
+            float attack = Mathf.Clamp01(t / 0.5f);
+            float release = Mathf.Clamp01((duration - t) / 0.6f);
+            float tone = Mathf.Sin(2f * Mathf.PI * freq * 0.997f * t) + Mathf.Sin(2f * Mathf.PI * freq * 1.003f * t)
+                         + 0.3f * Mathf.Sin(2f * Mathf.PI * freq * 2f * t);
+            return tone * attack * release * amp;
+        });
+    }
+
+    private static void AddBass(float[] buffer, float start, float freq, float amp)
+    {
+        AddVoice(buffer, start, 1.4f, t =>
+        {
+            float attack = Mathf.Clamp01(t / 0.01f);
+            return Mathf.Sin(2f * Mathf.PI * freq * t) * attack * Mathf.Exp(-t * 3f) * amp;
+        });
+    }
+
+    private static void AddShaker(float[] buffer, float start, float amp, System.Random rng)
+    {
+        float previous = 0f;
+        AddVoice(buffer, start, 0.08f, t =>
+        {
+            float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
+            float high = noise - previous;   // keep only the hiss
+            previous = noise;
+            return high * Mathf.Exp(-t * 60f) * amp;
+        });
+    }
+
+    private static void AddVoice(float[] buffer, float start, float duration, Func<float, float> sample)
+    {
+        int first = Mathf.Max(0, (int)(start * SampleRate));
+        int count = (int)(duration * SampleRate);
+        for (int i = 0; i < count && first + i < buffer.Length; i++)
+            buffer[first + i] += sample(i / (float)SampleRate);
+    }
+
+    // Normalise; a one-shot also gets a short fade at the end, a loop must not
+    private static float[] Finish(float[] data, float peakTarget, bool loop)
+    {
+        float peak = 0f;
+        foreach (float s in data)
+            peak = Mathf.Max(peak, Mathf.Abs(s));
+        float gain = peak > 0f ? peakTarget / peak : 1f;
+        int fade = loop ? 0 : Mathf.Min(data.Length, SampleRate / 50);
+        for (int i = 0; i < data.Length; i++)
+        {
+            float tail = i >= data.Length - fade ? (data.Length - i) / (float)fade : 1f;
+            data[i] *= gain * tail;
+        }
+        return data;
     }
 
     // Soft wooden "thock": a low tone whose pitch drops quickly, plus a tiny click
@@ -141,7 +298,7 @@ public static class SoundSynth
         return data;
     }
 
-    private static AudioClip Save(string name, float[] samples)
+    private static AudioClip Save(string name, float[] samples, bool isMusic = false)
     {
         string path = AudioFolder + "/" + name + ".wav";
         WriteWav(path, samples);
@@ -150,8 +307,12 @@ public static class SoundSynth
         var importer = (AudioImporter)AssetImporter.GetAtPath(path);
         importer.forceToMono = true;
         AudioImporterSampleSettings settings = importer.defaultSampleSettings;
-        settings.loadType = AudioClipLoadType.DecompressOnLoad;
-        settings.compressionFormat = AudioCompressionFormat.ADPCM;
+        // Short effects stay uncompressed in memory for instant playback;
+        // the long music loop is Vorbis-compressed to keep the app small.
+        settings.loadType = isMusic ? AudioClipLoadType.CompressedInMemory : AudioClipLoadType.DecompressOnLoad;
+        settings.compressionFormat = isMusic ? AudioCompressionFormat.Vorbis : AudioCompressionFormat.ADPCM;
+        if (isMusic)
+            settings.quality = 0.6f;
         importer.defaultSampleSettings = settings;
         importer.SaveAndReimport();
 
