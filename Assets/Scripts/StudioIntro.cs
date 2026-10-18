@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
 
-// Oyun açılışındaki "LD Games" stüdyo intro'su (~5 sn):
+// Oyun açılışındaki "LD Games" stüdyo intro'su (~6 sn):
 // renkli bloklar sekerek minik bir kule dizer, "L" ve "D" harfleri tek tek fırlar,
 // altın çizgi açılır, "GAMES" harfleri sırayla yükselir, logo hafifçe süzülür,
 // sonra her şey yavaşça kaybolup başlangıç ekranını açar.
@@ -17,22 +17,22 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
     public RectTransform accentLine;
     public TextMeshProUGUI gamesText;
 
-    [Header("Timing (saniye)")]
-    public float blockDropStart = 0.35f;
-    public float blockDropInterval = 0.25f;
-    public float blockDropDuration = 0.55f;
-    public float ldStart = 1.35f;
-    public float ldLetterDelay = 0.15f;
-    public float lineStart = 1.85f;
-    public float gamesStart = 2.05f;
-    public float gamesLetterDelay = 0.07f;
-    public float exitStart = 3.9f;
-    public float exitDuration = 1.1f;
+    // Zamanlama (saniye). Sabit tutuldu ki sahneye kaydedilmiş eski değerler yeni ayarları ezmesin.
+    private const float BlockDropStart = 0.5f;
+    private const float BlockDropInterval = 0.3f;
+    private const float BlockDropDuration = 0.6f;
+    private const float LdStart = 1.7f;
+    private const float LdLetterDelay = 0.2f;
+    private const float LineStart = 2.3f;
+    private const float GamesStart = 2.6f;
+    private const float GamesLetterDelay = 0.09f;
+    private const float SkipAllowedAfter = 3.4f;   // logo tamamen oluşmadan dokunmak intro'yu geçmesin
+    private const float ExitStart = 4.5f;
+    private const float ExitDuration = 1.3f;        // toplam ~5,8 sn
 
-    [Header("Motion")]
-    public float blockDropHeight = 420f;
-    public float accentLineWidth = 440f;
-    public float floatAmount = 8f;
+    private const float BlockDropHeight = 420f;
+    private const float AccentLineWidth = 440f;
+    private const float FloatAmount = 8f;
 
     private static bool hasPlayed;
     private float elapsed;
@@ -80,14 +80,14 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
         elapsed += Time.unscaledDeltaTime;
         Evaluate(elapsed);
 
-        if (elapsed >= exitStart + exitDuration)
+        if (elapsed >= ExitStart + ExitDuration)
             gameObject.SetActive(false);
     }
 
     public void OnPointerDown(PointerEventData eventData)
     {
-        if (elapsed < exitStart)
-            elapsed = exitStart;
+        if (elapsed >= SkipAllowedAfter && elapsed < ExitStart)
+            elapsed = ExitStart;
     }
 
     private void Evaluate(float t)
@@ -95,40 +95,40 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
         // Bloklar sırayla yukarıdan düşer, sekerek oturur ve yere değince hafifçe ezilir
         for (int i = 0; i < blocks.Length; i++)
         {
-            float start = blockDropStart + i * blockDropInterval;
-            float p = Progress(t, start, blockDropDuration);
-            float impact = Mathf.Sin(Progress(t, start + blockDropDuration, 0.22f) * Mathf.PI);
+            float start = BlockDropStart + i * BlockDropInterval;
+            float p = Progress(t, start, BlockDropDuration);
+            float impact = Mathf.Sin(Progress(t, start + BlockDropDuration, 0.22f) * Mathf.PI);
 
             blocks[i].localScale = p > 0f
                 ? new Vector3(1f + 0.12f * impact, 1f - 0.22f * impact, 1f)
                 : Vector3.zero;
-            blocks[i].anchoredPosition = blockTargets[i] + Vector2.up * blockDropHeight * (1f - EaseOutBounce(p));
+            blocks[i].anchoredPosition = blockTargets[i] + Vector2.up * BlockDropHeight * (1f - EaseOutBounce(p));
         }
 
         // "L" ve "D" sırayla aşağıdan fırlayıp taşarak yerine oturur
         ldAnimator.Apply(i =>
         {
-            float p = Progress(t, ldStart + i * ldLetterDelay, 0.5f);
+            float p = Progress(t, LdStart + i * LdLetterDelay, 0.5f);
             return (Mathf.LerpUnclamped(0.3f, 1f, EaseOutBack(p)), new Vector2(0f, -60f * (1f - EaseOutCubic(p))), p);
         });
 
         // Altın çizgi ortadan iki yana açılır
-        float line = EaseOutCubic(Progress(t, lineStart, 0.5f));
-        accentLine.sizeDelta = new Vector2(accentLineWidth * line, accentLine.sizeDelta.y);
+        float line = EaseOutCubic(Progress(t, LineStart, 0.5f));
+        accentLine.sizeDelta = new Vector2(AccentLineWidth * line, accentLine.sizeDelta.y);
 
         // "GAMES" harfleri soldan sağa, birer birer yükselerek belirir
         gamesAnimator.Apply(i =>
         {
-            float p = Progress(t, gamesStart + i * gamesLetterDelay, 0.4f);
+            float p = Progress(t, GamesStart + i * GamesLetterDelay, 0.4f);
             return (1f, new Vector2(0f, -30f * (1f - EaseOutCubic(p))), p);
         });
 
         // Bekleme sırasında logo yavaşça süzülür
-        float floatIn = Progress(t, ldStart, 1f);
-        float drift = Mathf.Sin((t - ldStart) * 2.2f) * floatAmount * floatIn;
+        float floatIn = Progress(t, LdStart, 1f);
+        float drift = Mathf.Sin((t - LdStart) * 2.2f) * FloatAmount * floatIn;
 
         // Çıkış: logo yukarı kayıp büyürken tüm ekran yavaşça kaybolur
-        float exit = EaseInOutCubic(Progress(t, exitStart, exitDuration));
+        float exit = EaseInOutCubic(Progress(t, ExitStart, ExitDuration));
         canvasGroup.alpha = 1f - exit;
         canvasGroup.blocksRaycasts = exit <= 0f;
         logoGroup.anchoredPosition = logoStart + Vector2.up * (drift + 50f * exit);
