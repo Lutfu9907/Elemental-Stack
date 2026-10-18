@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using TMPro;
 using UnityEditor;
@@ -9,6 +10,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.TextCore.LowLevel;
 using UnityEngine.UI;
 
 /// <summary>
@@ -33,6 +35,26 @@ public static class TowerStackSceneBuilder
     private static readonly Color BackgroundColor = new Color(0.10f, 0.12f, 0.20f);
     private static readonly Color AccentColor = new Color(1f, 0.78f, 0.25f);
 
+    // UI style A
+    private const string FontFolder = "Assets/Fonts/Fredoka";
+    private const string FontPath = FontFolder + "/Fredoka-SemiBold-Latin.ttf";
+    private const string FontExtPath = FontFolder + "/Fredoka-SemiBold-LatinExt.ttf";
+    private const string FontAssetPath = FontFolder + "/Fredoka SDF.asset";
+    private const string FontExtAssetPath = FontFolder + "/Fredoka Ext SDF.asset";
+    private const string OutlineMaterialPath = FontFolder + "/Fredoka SDF Outline.mat";
+    private const string RoundedSpritePath = "Assets/UI/Rounded.png";
+    private const float RoundedSpriteRadius = 64f;
+
+    private static readonly Color Navy = new Color(0.137f, 0.224f, 0.357f);
+    private static readonly Color MutedNavy = new Color(0.42f, 0.5f, 0.62f);
+    private static readonly Color Yellow = new Color(1f, 0.824f, 0.302f);
+    private static readonly Color YellowText = new Color(0.353f, 0.263f, 0f);
+    private static readonly Color Coral = new Color(0.91f, 0.34f, 0.29f);
+
+    private static TMP_FontAsset uiFont;
+    private static Material outlineMaterial;
+    private static Sprite roundedSprite;
+
     [MenuItem("Tower Stack/Build Game Scene")]
     public static void Build()
     {
@@ -55,8 +77,11 @@ public static class TowerStackSceneBuilder
         Material backgroundMaterial = CreateMaterial(BackgroundMaterialPath, "Universal Render Pipeline/Unlit");
         GameObject blockPrefab = CreateBlockPrefab(blockMaterial);
 
-        CreatePopupPrefab("PerfectPopup", "PERFECT!", typeof(PerfectPopup), 64, AccentColor);
-        CreatePopupPrefab("ComboPopup", "Combo x2", typeof(ComboPopup), 48, Color.white);
+        // UI style A: Fredoka font, rounded pills, navy text on a pastel sky
+        uiFont = SetupFont();
+        outlineMaterial = CreateOutlineMaterial(uiFont);
+        roundedSprite = GetOrCreateRoundedSprite();
+        CreatePerfectPopupPrefab();
 
         SetupLighting();
         TowerController tower = CreateTower(blockPrefab);
@@ -76,40 +101,93 @@ public static class TowerStackSceneBuilder
         Stretch(tapArea.rectTransform);
         tapArea.gameObject.AddComponent<TapInputArea>().tower = tower;
         RectTransform hud = CreateSafeArea(gameUI);
-        TextMeshProUGUI scoreText = CreateText("ScoreText", hud, "SCORE: 0", 64, Color.white, TextAlignmentOptions.Left);
-        AnchorTopLeft(scoreText.rectTransform, new Vector2(48f, -48f), new Vector2(700f, 90f));
+        // Big centred score in white with a navy outline so it reads on every sky colour
+        TextMeshProUGUI scoreText = CreateText("ScoreText", hud, "0", 170, Color.white, TextAlignmentOptions.Center);
+        UseOutline(scoreText);
+        AnchorTop(scoreText.rectTransform, new Vector2(0f, -100f), new Vector2(800f, 210f));
         scoreText.gameObject.AddComponent<ScorePunchEffect>();
-        TextMeshProUGUI highScoreText = CreateText("HighScoreText", hud, "BEST: 0", 40, new Color(1f, 1f, 1f, 0.7f), TextAlignmentOptions.Left);
-        AnchorTopLeft(highScoreText.rectTransform, new Vector2(48f, -138f), new Vector2(700f, 60f));
+        TextMeshProUGUI highScoreText = CreateText("HighScoreText", hud, "Best: 0", 46, Color.white, TextAlignmentOptions.Center);
+        UseOutline(highScoreText);
+        AnchorTop(highScoreText.rectTransform, new Vector2(0f, -310f), new Vector2(800f, 70f));
 
-        // Start screen: tap anywhere to start
-        Image startPanel = CreateImage("StartPanel", canvas.transform, new Color(0f, 0f, 0f, 0.35f));
+        // Start screen: tap anywhere to start. The panel itself is the (invisible) button.
+        Image startPanel = CreateImage("StartPanel", canvas.transform, new Color(0f, 0f, 0f, 0f));
         Stretch(startPanel.rectTransform);
         Button startButton = startPanel.gameObject.AddComponent<Button>();
         startButton.targetGraphic = startPanel;
         startButton.transition = Selectable.Transition.None;
         RectTransform startContent = CreateSafeArea(startPanel.transform);
-        TextMeshProUGUI title = CreateText("Title", startContent, "TOWER\nSTACK", 150, Color.white, TextAlignmentOptions.Center);
-        Place(title.rectTransform, new Vector2(0f, 380f), new Vector2(1000f, 400f));
-        TextMeshProUGUI tapHint = CreateText("TapHint", startContent, "TAP TO START", 52, AccentColor, TextAlignmentOptions.Center);
-        Place(tapHint.rectTransform, new Vector2(0f, -320f), new Vector2(900f, 100f));
 
-        // Game over screen
-        Image gameOverBg = CreateImage("GameOverPanel", canvas.transform, new Color(0f, 0f, 0f, 0.6f));
+        Image bestPill = CreateRounded("BestPill", startContent, Color.white, 46f);
+        bestPill.raycastTarget = false;
+        AnchorTop(bestPill.rectTransform, new Vector2(0f, -70f), new Vector2(400f, 92f));
+        TextMeshProUGUI startBestText = CreatePillLabel(bestPill, "Best: 0", 44, Navy, null);
+
+        // Language switch (EN / TR); its own button, so tapping it never starts the game
+        Image languagePill = CreateRounded("LanguageButton", startContent, Color.white, 46f);
+        RectTransform languageRt = languagePill.rectTransform;
+        languageRt.anchorMin = languageRt.anchorMax = languageRt.pivot = new Vector2(1f, 1f);
+        languageRt.anchoredPosition = new Vector2(-48f, -70f);
+        languageRt.sizeDelta = new Vector2(170f, 92f);
+        languagePill.gameObject.AddComponent<Button>().targetGraphic = languagePill;
+        languagePill.gameObject.AddComponent<LanguageButton>();
+        CreatePillLabel(languagePill, "EN", 42, Navy, "language");
+
+        TextMeshProUGUI title = CreateText("Title", startContent, "Tower\nStack", 200, Navy, TextAlignmentOptions.Center);
+        title.lineSpacing = -25f;
+        title.gameObject.AddComponent<LocalizedText>().key = "title";
+        Place(title.rectTransform, new Vector2(0f, 500f), new Vector2(1000f, 480f));
+
+        // Tap hint sits at the bottom, away from the tower, and gently pulses
+        Image tapHint = CreateRounded("TapHint", startContent, Yellow, 75f);
+        tapHint.raycastTarget = false;
+        RectTransform tapRt = tapHint.rectTransform;
+        tapRt.anchorMin = tapRt.anchorMax = tapRt.pivot = new Vector2(0.5f, 0f);
+        tapRt.anchoredPosition = new Vector2(0f, 180f);
+        tapRt.sizeDelta = new Vector2(660f, 150f);
+        CreatePillLabel(tapHint, "Tap to start", 58, YellowText, "tap_to_start");
+        tapHint.gameObject.AddComponent<PulseScale>();
+
+        // Game over screen: a white card over a navy dim
+        Image gameOverBg = CreateImage("GameOverPanel", canvas.transform, new Color(Navy.r, Navy.g, Navy.b, 0.55f));
         Stretch(gameOverBg.rectTransform);
         CanvasGroup gameOverGroup = gameOverBg.gameObject.AddComponent<CanvasGroup>();
         RectTransform gameOverContent = CreateSafeArea(gameOverBg.transform);
-        TextMeshProUGUI gameOverText = CreateText("GameOverText", gameOverContent, "GAME OVER", 120, Color.white, TextAlignmentOptions.Center);
-        Place(gameOverText.rectTransform, new Vector2(0f, 220f), new Vector2(1000f, 180f));
-        Button restartButton = CreateButton("RestartButton", gameOverContent, "RESTART", new Vector2(560f, 160f), AccentColor, BackgroundColor);
-        Place((RectTransform)restartButton.transform, new Vector2(0f, -160f), new Vector2(560f, 160f));
+        Image card = CreateRounded("Card", gameOverContent, Color.white, 64f);
+        Place(card.rectTransform, new Vector2(0f, 40f), new Vector2(840f, 1000f));
+
+        TextMeshProUGUI gameOverText = CreateText("GameOverText", card.transform, "Game over", 90, Navy, TextAlignmentOptions.Center);
+        gameOverText.gameObject.AddComponent<LocalizedText>().key = "game_over";
+        Place(gameOverText.rectTransform, new Vector2(0f, 380f), new Vector2(760f, 120f));
+        TextMeshProUGUI scoreLabel = CreateText("ScoreLabel", card.transform, "Score", 44, MutedNavy, TextAlignmentOptions.Center);
+        scoreLabel.gameObject.AddComponent<LocalizedText>().key = "score_label";
+        Place(scoreLabel.rectTransform, new Vector2(0f, 245f), new Vector2(760f, 70f));
+        TextMeshProUGUI finalScoreText = CreateText("FinalScore", card.transform, "0", 200, Navy, TextAlignmentOptions.Center);
+        Place(finalScoreText.rectTransform, new Vector2(0f, 100f), new Vector2(760f, 230f));
+
+        Image newBestBadge = CreateRounded("NewBestBadge", card.transform, Coral, 40f);
+        newBestBadge.raycastTarget = false;
+        Place(newBestBadge.rectTransform, new Vector2(0f, -60f), new Vector2(380f, 80f));
+        CreatePillLabel(newBestBadge, "New best!", 40, Color.white, "new_best");
+        newBestBadge.gameObject.SetActive(false);
+
+        TextMeshProUGUI finalBestText = CreateText("FinalBest", card.transform, "Best: 0", 48, MutedNavy, TextAlignmentOptions.Center);
+        Place(finalBestText.rectTransform, new Vector2(0f, -165f), new Vector2(760f, 70f));
+
+        Image restartPill = CreateRounded("RestartButton", card.transform, Yellow, 75f);
+        Place(restartPill.rectTransform, new Vector2(0f, -350f), new Vector2(620f, 150f));
+        Button restartButton = restartPill.gameObject.AddComponent<Button>();
+        restartButton.targetGraphic = restartPill;
+        CreatePillLabel(restartPill, "Play again", 60, YellowText, "play_again");
+
         GameOverPanelController gameOverPanel = gameOverBg.gameObject.AddComponent<GameOverPanelController>();
         gameOverPanel.canvasGroup = gameOverGroup;
         gameOverPanel.restartButton = (RectTransform)restartButton.transform;
         gameOverPanel.gameOverText = gameOverText.rectTransform;
 
-        // Combo feedback
-        TextMeshProUGUI comboText = CreateText("ComboPopupText", canvas.transform, "", 96, AccentColor, TextAlignmentOptions.Center);
+        // Combo feedback ("Great!", "Amazing!"...)
+        TextMeshProUGUI comboText = CreateText("ComboPopupText", canvas.transform, "", 96, Yellow, TextAlignmentOptions.Center);
+        UseOutline(comboText);
         Place(comboText.rectTransform, new Vector2(0f, 520f), new Vector2(1000f, 150f));
         comboText.alpha = 0f;
         Image flashImage = CreateImage("FlashImage", canvas.transform, new Color(1f, 1f, 1f, 0f));
@@ -142,6 +220,10 @@ public static class TowerStackSceneBuilder
         gm.gameOverPanel = gameOverPanel;
         gm.scoreText = scoreText;
         gm.highScoreText = highScoreText;
+        gm.startBestText = startBestText;
+        gm.finalScoreText = finalScoreText;
+        gm.finalBestText = finalBestText;
+        gm.newBestBadge = newBestBadge.gameObject;
         gm.fade = fade;
         gm.tower = tower;
 
@@ -317,21 +399,178 @@ public static class TowerStackSceneBuilder
         AssetDatabase.SaveAssets();
     }
 
-    private static void CreatePopupPrefab(string name, string text, System.Type component, float fontSize, Color color)
+    // "Perfect! x3" bubble: a white pill that grows to fit its text
+    private static void CreatePerfectPopupPrefab()
     {
         Directory.CreateDirectory(ResourcesFolder);
-        string path = ResourcesFolder + "/" + name + ".prefab";
 
-        var root = new GameObject(name, typeof(RectTransform), typeof(CanvasGroup));
+        var root = new GameObject("PerfectPopup", typeof(RectTransform), typeof(CanvasGroup));
         root.layer = LayerMask.NameToLayer("UI");
-        var rt = (RectTransform)root.transform;
-        rt.sizeDelta = new Vector2(600f, 120f);
-        TextMeshProUGUI label = CreateText("Text", rt, text, fontSize, color, TextAlignmentOptions.Center);
-        Stretch(label.rectTransform);
-        root.AddComponent(component);
+        Image background = root.AddComponent<Image>();
+        MakeRounded(background, Color.white, 52f);
+        background.raycastTarget = false;
 
-        PrefabUtility.SaveAsPrefabAsset(root, path);
+        var layout = root.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(44, 44, 12, 12);
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+        var fitter = root.AddComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        TextMeshProUGUI label = CreateText("Text", root.transform, "Perfect!", 60, Coral, TextAlignmentOptions.Center);
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        root.AddComponent<PerfectPopup>();
+
+        PrefabUtility.SaveAsPrefabAsset(root, ResourcesFolder + "/PerfectPopup.prefab");
         Object.DestroyImmediate(root);
+    }
+
+    // ------------------------------------------------------------- UI style
+
+    private static TMP_FontAsset SetupFont()
+    {
+        TMP_FontAsset main = LoadOrCreateFontAsset(FontPath, FontAssetPath);
+        TMP_FontAsset extended = LoadOrCreateFontAsset(FontExtPath, FontExtAssetPath);
+        if (main == null) return null;
+
+        // Turkish letters (ş, ğ, ı, İ) live in the Latin Extended file
+        if (extended != null)
+        {
+            if (main.fallbackFontAssetTable == null)
+                main.fallbackFontAssetTable = new List<TMP_FontAsset>();
+            if (!main.fallbackFontAssetTable.Contains(extended))
+                main.fallbackFontAssetTable.Add(extended);
+            EditorUtility.SetDirty(main);
+        }
+        return main;
+    }
+
+    private static TMP_FontAsset LoadOrCreateFontAsset(string fontPath, string assetPath)
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
+        if (existing != null)
+            return existing;
+
+        Font font = AssetDatabase.LoadAssetAtPath<Font>(fontPath);
+        if (font == null)
+        {
+            Debug.LogError("Tower Stack: font bulunamadı → " + fontPath);
+            return null;
+        }
+
+        // Dynamic atlas: glyphs are added on demand, so any language's letters work
+        TMP_FontAsset asset = TMP_FontAsset.CreateFontAsset(font, 90, 9, GlyphRenderMode.SDFAA, 1024, 1024, AtlasPopulationMode.Dynamic, true);
+        asset.name = Path.GetFileNameWithoutExtension(assetPath);
+        AssetDatabase.CreateAsset(asset, assetPath);
+        asset.atlasTextures[0].name = asset.name + " Atlas";
+        AssetDatabase.AddObjectToAsset(asset.atlasTextures[0], asset);
+        asset.material.name = asset.name + " Material";
+        AssetDatabase.AddObjectToAsset(asset.material, asset);
+        AssetDatabase.SaveAssets();
+        return asset;
+    }
+
+    private static Material CreateOutlineMaterial(TMP_FontAsset font)
+    {
+        if (font == null) return null;
+
+        var material = AssetDatabase.LoadAssetAtPath<Material>(OutlineMaterialPath);
+        if (material == null)
+        {
+            material = new Material(font.material);
+            AssetDatabase.CreateAsset(material, OutlineMaterialPath);
+        }
+        else
+        {
+            material.CopyPropertiesFromMaterial(font.material);
+        }
+        material.SetColor("_OutlineColor", new Color(Navy.r, Navy.g, Navy.b, 0.85f));
+        material.SetFloat("_OutlineWidth", 0.18f);
+        material.SetFloat("_FaceDilate", 0.18f);
+        material.EnableKeyword("OUTLINE_ON");
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    // White circle sprite, nine-sliced into pills and rounded cards of any size
+    private static Sprite GetOrCreateRoundedSprite()
+    {
+        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(RoundedSpritePath);
+        if (existing != null)
+            return existing;
+
+        const int size = (int)(RoundedSpriteRadius * 2f);
+        float radius = RoundedSpriteRadius;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        var pixels = new Color32[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x + 0.5f - radius;
+                float dy = y + 0.5f - radius;
+                float alpha = Mathf.Clamp01(radius - Mathf.Sqrt(dx * dx + dy * dy));
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+            }
+        }
+        texture.SetPixels32(pixels);
+        Directory.CreateDirectory(Path.GetDirectoryName(RoundedSpritePath));
+        File.WriteAllBytes(RoundedSpritePath, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(RoundedSpritePath);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(RoundedSpritePath);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.spriteBorder = new Vector4(radius - 1f, radius - 1f, radius - 1f, radius - 1f);
+        importer.spritePixelsPerUnit = 100f;
+        importer.mipmapEnabled = false;
+        importer.alphaIsTransparency = true;
+        importer.filterMode = FilterMode.Bilinear;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(RoundedSpritePath);
+    }
+
+    private static Image CreateRounded(string name, Transform parent, Color color, float cornerRadius)
+    {
+        Image image = CreateImage(name, parent, color);
+        MakeRounded(image, color, cornerRadius);
+        return image;
+    }
+
+    private static void MakeRounded(Image image, Color color, float cornerRadius)
+    {
+        image.color = color;
+        if (roundedSprite == null) return;
+        image.sprite = roundedSprite;
+        image.type = Image.Type.Sliced;
+        // The sprite's corners are RoundedSpriteRadius px; scale them to the wanted radius
+        image.pixelsPerUnitMultiplier = RoundedSpriteRadius / cornerRadius;
+    }
+
+    // Centred label that fills a pill and shrinks to fit longer translations
+    private static TextMeshProUGUI CreatePillLabel(Image pill, string text, float size, Color color, string localizationKey)
+    {
+        TextMeshProUGUI label = CreateText("Label", pill.transform, text, size, color, TextAlignmentOptions.Center);
+        Stretch(label.rectTransform);
+        label.margin = new Vector4(24f, 0f, 24f, 0f);
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        label.enableAutoSizing = true;
+        label.fontSizeMax = size;
+        label.fontSizeMin = size * 0.6f;
+        if (!string.IsNullOrEmpty(localizationKey))
+            label.gameObject.AddComponent<LocalizedText>().key = localizationKey;
+        return label;
+    }
+
+    private static void UseOutline(TextMeshProUGUI text)
+    {
+        if (outlineMaterial != null)
+            text.fontSharedMaterial = outlineMaterial;
     }
 
     private static void AddSceneToBuildSettings(string path)
@@ -445,20 +684,18 @@ public static class TowerStackSceneBuilder
         tmp.fontSize = size;
         tmp.color = color;
         tmp.alignment = alignment;
-        tmp.fontStyle = FontStyles.Bold;
         tmp.raycastTarget = false;
+        if (uiFont != null)
+        {
+            // Fredoka file is already SemiBold; synthetic bold on top would look smeared
+            tmp.font = uiFont;
+            tmp.fontStyle = FontStyles.Normal;
+        }
+        else
+        {
+            tmp.fontStyle = FontStyles.Bold;
+        }
         return tmp;
-    }
-
-    private static Button CreateButton(string name, Transform parent, string label, Vector2 size, Color background, Color textColor)
-    {
-        Image img = CreateImage(name, parent, background);
-        img.rectTransform.sizeDelta = size;
-        Button button = img.gameObject.AddComponent<Button>();
-        button.targetGraphic = img;
-        TextMeshProUGUI text = CreateText("Label", img.transform, label, 60, textColor, TextAlignmentOptions.Center);
-        Stretch(text.rectTransform);
-        return button;
     }
 
     private static void Stretch(RectTransform rt)
@@ -476,9 +713,9 @@ public static class TowerStackSceneBuilder
         rt.sizeDelta = size;
     }
 
-    private static void AnchorTopLeft(RectTransform rt, Vector2 anchoredPosition, Vector2 size)
+    private static void AnchorTop(RectTransform rt, Vector2 anchoredPosition, Vector2 size)
     {
-        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 1f);
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 1f);
         rt.anchoredPosition = anchoredPosition;
         rt.sizeDelta = size;
     }

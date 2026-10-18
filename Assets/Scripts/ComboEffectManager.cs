@@ -61,16 +61,16 @@ public class ComboEffectManager : MonoBehaviour
         switch (tier)
         {
             case 1:
-                comboPopupText.text = "GOOD!";
+                comboPopupText.text = Localization.Get("combo_good");
                 break;
             case 2:
-                comboPopupText.text = "GREAT!";
+                comboPopupText.text = Localization.Get("combo_great");
                 break;
             case 3:
-                comboPopupText.text = "AMAZING!";
+                comboPopupText.text = Localization.Get("combo_amazing");
                 break;
             case 4:
-                comboPopupText.text = "SUPER STACK!";
+                comboPopupText.text = Localization.Get("combo_super");
                 break;
         }
 
