@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 
@@ -20,9 +21,15 @@ public static class TowerStackSceneBuilder
     private const string ScenePath = "Assets/Scenes/Game.unity";
     private const string BlockPrefabPath = "Assets/Prefabs/Block.prefab";
     private const string ResourcesFolder = "Assets/Resources";
-    private const string SquareSpritePath = "Assets/Art/Square.png";
+    private const string MaterialsFolder = "Assets/Materials";
+    private const string BlockMaterialPath = MaterialsFolder + "/Block.mat";
+    private const string BackgroundMaterialPath = MaterialsFolder + "/Background.mat";
+    private const string PipelinePath = "Assets/Settings/URP-Mobile3D.asset";
+    private const string RendererPath = "Assets/Settings/URP-Mobile3D_Renderer.asset";
+    private const string PostProcessDataPath = "Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset";
 
-    private const float BlockWidth = 3f;
+    private const float BlockSize = 3f;
+    private const float BlockHeight = 0.5f;
     private static readonly Color BackgroundColor = new Color(0.10f, 0.12f, 0.20f);
     private static readonly Color AccentColor = new Color(1f, 0.78f, 0.25f);
 
@@ -39,22 +46,21 @@ public static class TowerStackSceneBuilder
             return;
 
         ApplyMobilePlayerSettings();
-
-        GameObject blockPrefab = PrepareBlockPrefab();
-        if (blockPrefab == null)
-        {
-            Debug.LogError("Tower Stack: " + BlockPrefabPath + " bulunamadı.");
-            return;
-        }
+        SetupRenderPipeline();
 
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+        Material blockMaterial = CreateMaterial(BlockMaterialPath, "Universal Render Pipeline/Lit");
+        blockMaterial.SetFloat("_Smoothness", 0.15f);
+        Material backgroundMaterial = CreateMaterial(BackgroundMaterialPath, "Universal Render Pipeline/Unlit");
+        GameObject blockPrefab = CreateBlockPrefab(blockMaterial);
 
         CreatePopupPrefab("PerfectPopup", "PERFECT!", typeof(PerfectPopup), 64, AccentColor);
         CreatePopupPrefab("ComboPopup", "Combo x2", typeof(ComboPopup), 48, Color.white);
 
-        CreateCamera();
-        CreateGlobalLight();
+        SetupLighting();
         TowerController tower = CreateTower(blockPrefab);
+        CreateCamera(backgroundMaterial, tower);
 
         // ---------- UI ----------
         Canvas canvas = CreateCanvas();
@@ -146,6 +152,7 @@ public static class TowerStackSceneBuilder
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
+        AssetDatabase.SaveAssets();
         AddSceneToBuildSettings(ScenePath);
 
         Debug.Log("Tower Stack: oyun sahnesi kuruldu → " + ScenePath + ". Play'e basarak deneyebilirsin.");
@@ -153,36 +160,70 @@ public static class TowerStackSceneBuilder
 
     // ------------------------------------------------------------------ world
 
-    private static void CreateCamera()
+    private static void CreateCamera(Material backgroundMaterial, TowerController tower)
     {
         // The rig follows the tower; the camera inside it shakes. Keeping them on
         // separate objects stops the shake from snapping the camera back down.
         var rig = new GameObject("CameraRig");
-        rig.transform.position = new Vector3(0f, 2f, -10f);
         CameraFollow follow = rig.AddComponent<CameraFollow>();
-        follow.offset = new Vector3(0f, 2f, 0f);
+        follow.offset = new Vector3(0f, 1.5f, 0f);
         follow.smoothSpeed = 3f;
+        rig.transform.position = follow.offset;
 
+        // Angled orthographic view: looking down 30° from a 45° corner shows the top
+        // and two sides of every block, like a classic isometric stacker.
         var camGo = new GameObject("Main Camera");
         camGo.tag = "MainCamera";
         camGo.transform.SetParent(rig.transform, false);
+        Quaternion viewRotation = Quaternion.Euler(30f, 45f, 0f);
+        camGo.transform.localRotation = viewRotation;
+        camGo.transform.localPosition = viewRotation * new Vector3(0f, 0f, -25f);
+
         Camera cam = camGo.AddComponent<Camera>();
         cam.orthographic = true;
-        cam.orthographicSize = 6f;
+        cam.orthographicSize = 7f;
+        cam.nearClipPlane = 0.1f;
+        cam.farClipPlane = 300f;
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = BackgroundColor;
+        camGo.AddComponent<UniversalAdditionalCameraData>();
         camGo.AddComponent<AudioListener>();
         camGo.AddComponent<CameraShake>();
         // Widens the view on tall phones so the sliding block stays on screen
         camGo.AddComponent<CameraFitWidth>().minOrthographicSize = cam.orthographicSize;
+
+        // Gradient backdrop: a quad behind everything, coloured at runtime
+        var background = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        background.name = "Background";
+        Object.DestroyImmediate(background.GetComponent<Collider>());
+        background.transform.SetParent(camGo.transform, false);
+        MeshRenderer bgRenderer = background.GetComponent<MeshRenderer>();
+        bgRenderer.sharedMaterial = backgroundMaterial;
+        bgRenderer.shadowCastingMode = ShadowCastingMode.Off;
+        bgRenderer.receiveShadows = false;
+
+        BackgroundGradient gradient = camGo.AddComponent<BackgroundGradient>();
+        gradient.backgroundRenderer = bgRenderer;
+        gradient.tower = tower;
     }
 
-    private static void CreateGlobalLight()
+    private static void SetupLighting()
     {
-        var lightGo = new GameObject("Global Light 2D");
-        Light2D light = lightGo.AddComponent<Light2D>();
-        light.lightType = Light2D.LightType.Global;
+        RenderSettings.skybox = null;
+        RenderSettings.ambientMode = AmbientMode.Flat;
+        RenderSettings.ambientLight = new Color(0.62f, 0.62f, 0.68f);
+        RenderSettings.fog = false;
+
+        // Sun from the front-left so the top and the two visible sides get three distinct shades
+        var lightGo = new GameObject("Directional Light");
+        lightGo.transform.rotation = Quaternion.Euler(50f, 20f, 0f);
+        Light light = lightGo.AddComponent<Light>();
+        light.type = UnityEngine.LightType.Directional;
+        light.color = new Color(1f, 0.96f, 0.9f);
         light.intensity = 1f;
+        light.shadows = LightShadows.Soft;
+        light.shadowStrength = 0.5f;
+        lightGo.AddComponent<UniversalAdditionalLightData>();
     }
 
     private static TowerController CreateTower(GameObject blockPrefab)
@@ -190,17 +231,18 @@ public static class TowerStackSceneBuilder
         var towerGo = new GameObject("Tower");
         TowerController tower = towerGo.AddComponent<TowerController>();
         tower.blockPrefab = blockPrefab;
-        tower.blockHeight = 1f;
-        tower.moveSpeed = 2f;
-        tower.speedIncreasePerScore = 0.1f;
-        tower.moveRange = 2.5f;
-        tower.spawnPoint = towerGo.transform;
+        tower.blockHeight = BlockHeight;
+        tower.moveSpeed = 3f;
+        tower.speedIncreasePerScore = 0.05f;
+        tower.maxMoveSpeed = 7f;
+        tower.moveRange = 2.6f;
 
-        // Base platform the first block lands on
+        // Tall pedestal the first block lands on; its top surface is at y = 0
+        const float baseHeight = 6f;
         var baseBlock = (GameObject)PrefabUtility.InstantiatePrefab(blockPrefab, towerGo.transform);
         baseBlock.name = "BaseBlock";
-        baseBlock.transform.position = new Vector3(0f, -1f, 0f);
-        baseBlock.transform.localScale = new Vector3(BlockWidth, 1f, 1f);
+        baseBlock.transform.position = new Vector3(0f, -baseHeight * 0.5f, 0f);
+        baseBlock.transform.localScale = new Vector3(BlockSize, baseHeight, BlockSize);
         Block block = baseBlock.GetComponent<Block>();
         if (block != null)
             block.elementType = Block.BlockElementType.None;
@@ -208,46 +250,68 @@ public static class TowerStackSceneBuilder
         return tower;
     }
 
-    private static GameObject PrepareBlockPrefab()
+    private static GameObject CreateBlockPrefab(Material material)
     {
-        if (AssetDatabase.LoadAssetAtPath<GameObject>(BlockPrefabPath) == null)
-            return null;
+        // Overwrites the old 2D sprite prefab in place, so its GUID stays the same.
+        GameObject root = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        root.name = "Block";
+        root.transform.localScale = new Vector3(BlockSize, BlockHeight, BlockSize);
+        MeshRenderer renderer = root.GetComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        Block block = root.AddComponent<Block>();
+        block.rend = renderer;
 
-        GameObject root = PrefabUtility.LoadPrefabContents(BlockPrefabPath);
-        // Older versions resized the prefab asset itself while playing, leaving it very thin.
-        root.transform.localScale = new Vector3(BlockWidth, 1f, 1f);
-
-        SpriteRenderer sr = root.GetComponentInChildren<SpriteRenderer>();
-        if (sr != null && sr.sprite == null)
-            sr.sprite = GetOrCreateSquareSprite();
-
-        PrefabUtility.SaveAsPrefabAsset(root, BlockPrefabPath);
-        PrefabUtility.UnloadPrefabContents(root);
-        return AssetDatabase.LoadAssetAtPath<GameObject>(BlockPrefabPath);
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, BlockPrefabPath);
+        Object.DestroyImmediate(root);
+        return prefab;
     }
 
-    private static Sprite GetOrCreateSquareSprite()
+    private static Material CreateMaterial(string path, string shaderName)
     {
-        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(SquareSpritePath);
-        if (existing != null)
-            return existing;
+        Directory.CreateDirectory(MaterialsFolder);
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            material = new Material(Shader.Find(shaderName));
+            AssetDatabase.CreateAsset(material, path);
+        }
+        else
+        {
+            material.shader = Shader.Find(shaderName);
+        }
+        material.SetColor("_BaseColor", Color.white);
+        EditorUtility.SetDirty(material);
+        return material;
+    }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(SquareSpritePath));
-        var tex = new Texture2D(32, 32);
-        var pixels = new Color32[32 * 32];
-        for (int i = 0; i < pixels.Length; i++)
-            pixels[i] = new Color32(255, 255, 255, 255);
-        tex.SetPixels32(pixels);
-        File.WriteAllBytes(SquareSpritePath, tex.EncodeToPNG());
-        Object.DestroyImmediate(tex);
+    private static void SetupRenderPipeline()
+    {
+        // The project started on the 2D renderer, which cannot light or shadow 3D meshes.
+        // Create a mobile-friendly Universal Renderer pipeline once and make it the default.
+        var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(PipelinePath);
+        if (pipeline == null)
+        {
+            var rendererData = ScriptableObject.CreateInstance<UniversalRendererData>();
+            rendererData.postProcessData = AssetDatabase.LoadAssetAtPath<PostProcessData>(PostProcessDataPath);
+            AssetDatabase.CreateAsset(rendererData, RendererPath);
 
-        AssetDatabase.ImportAsset(SquareSpritePath);
-        var importer = (TextureImporter)AssetImporter.GetAtPath(SquareSpritePath);
-        importer.textureType = TextureImporterType.Sprite;
-        importer.spritePixelsPerUnit = 32f;
-        importer.filterMode = FilterMode.Point;
-        importer.SaveAndReimport();
-        return AssetDatabase.LoadAssetAtPath<Sprite>(SquareSpritePath);
+            pipeline = UniversalRenderPipelineAsset.Create(rendererData);
+            pipeline.supportsHDR = true;
+            pipeline.msaaSampleCount = 4;
+            pipeline.shadowDistance = 50f;
+            pipeline.shadowCascadeCount = 1;
+            pipeline.mainLightShadowmapResolution = 2048;
+            AssetDatabase.CreateAsset(pipeline, PipelinePath);
+
+            // Soft shadows have no public setter
+            var so = new SerializedObject(pipeline);
+            so.FindProperty("m_SoftShadowsSupported").boolValue = true;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        GraphicsSettings.defaultRenderPipeline = pipeline;
+        QualitySettings.renderPipeline = null; // quality levels fall back to the default above
+        AssetDatabase.SaveAssets();
     }
 
     private static void CreatePopupPrefab(string name, string text, System.Type component, float fontSize, Color color)
