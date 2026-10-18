@@ -157,8 +157,7 @@ public class TowerController : MonoBehaviour
             AudioManager.Instance.PlaySound(AudioManager.Instance.sliceSound);
 
             combo++;
-            PerfectPopup.Spawn(pos + Vector3.up * 0.6f);
-            ComboPopup.Spawn(pos + Vector3.up * 0.9f, combo);
+            PerfectPopup.Spawn(pos + Vector3.up * 0.6f, combo);
             CameraShake.Instance.Shake(0.03f, 0.08f);
             ComboEffectManager.Instance.PlayPerfectComboEffect(combo);
         }

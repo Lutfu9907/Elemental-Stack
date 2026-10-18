@@ -9,17 +9,45 @@ public class GameManager : MonoBehaviour
     public GameObject gameUIPanel;
     public GameOverPanelController gameOverPanel;
 
-    [Header("UI")]
+    [Header("HUD")]
     public TextMeshProUGUI scoreText;
     public TextMeshProUGUI highScoreText;
-    public FadeController fade;
 
-    [Header("Gameplay")]
+    [Header("Start Screen")]
+    public TextMeshProUGUI startBestText;
+
+    [Header("Game Over")]
+    public TextMeshProUGUI finalScoreText;
+    public TextMeshProUGUI finalBestText;
+    public GameObject newBestBadge;
+
+    [Header("Other")]
+    public FadeController fade;
     public TowerController tower;
 
+    private const string HighScoreKey = "HighScore";
+
+    private int score = 0;
     private int highScore = 0;
+    private int highScoreAtStart = 0;
     private bool isGameOver = false;
     private bool isGameStarted = false;
+
+    void Awake()
+    {
+        highScore = PlayerPrefs.GetInt(HighScoreKey, 0);
+        highScoreAtStart = highScore;
+    }
+
+    void OnEnable()
+    {
+        Localization.LanguageChanged += RefreshTexts;
+    }
+
+    void OnDisable()
+    {
+        Localization.LanguageChanged -= RefreshTexts;
+    }
 
     void Start()
     {
@@ -28,6 +56,7 @@ public class GameManager : MonoBehaviour
         gameOverPanel.gameObject.SetActive(false);
 
         Time.timeScale = 0f;
+        RefreshTexts();
     }
 
     public void StartGame()
@@ -44,21 +73,20 @@ public class GameManager : MonoBehaviour
         if (tower != null)
             tower.StartTower();
 
-        highScore = PlayerPrefs.GetInt("HighScore", 0);
-        highScoreText.text = "BEST: " + highScore;
-        scoreText.text = "SCORE: 0";
+        RefreshTexts();
     }
 
-    public void UpdateScore(int score)
+    public void UpdateScore(int newScore)
     {
-        scoreText.text = "SCORE: " + score;
+        score = newScore;
 
         if (score > highScore)
         {
             highScore = score;
-            highScoreText.text = "BEST: " + highScore;
-            PlayerPrefs.SetInt("HighScore", highScore);
+            PlayerPrefs.SetInt(HighScoreKey, highScore);
         }
+
+        RefreshTexts();
     }
 
     public void GameOver()
@@ -66,11 +94,17 @@ public class GameManager : MonoBehaviour
         if (isGameOver) return;
         isGameOver = true;
 
+        PlayerPrefs.Save();
+        RefreshTexts();
+        if (newBestBadge != null)
+            newBestBadge.SetActive(score > highScoreAtStart);
+
         gameUIPanel.SetActive(false);
         gameOverPanel.Show();
 
         Time.timeScale = 0f;
     }
+
     public void RestartGame()
     {
         Time.timeScale = 1f;
@@ -80,9 +114,21 @@ public class GameManager : MonoBehaviour
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         });
     }
+
     public void QuitGame()
     {
         Application.Quit();
-        Debug.Log("Oyun kapatıldı!");
+    }
+
+    // Skor ve "en iyi" yazılarını o anki değer ve dile göre yeniler
+    private void RefreshTexts()
+    {
+        string best = Localization.Format("best", highScore);
+
+        if (scoreText != null) scoreText.text = score.ToString();
+        if (highScoreText != null) highScoreText.text = best;
+        if (startBestText != null) startBestText.text = best;
+        if (finalScoreText != null) finalScoreText.text = score.ToString();
+        if (finalBestText != null) finalBestText.text = best;
     }
 }

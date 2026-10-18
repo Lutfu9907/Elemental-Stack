@@ -42,7 +42,7 @@ public class Block : MonoBehaviour
                 blockColor = new Color(1f, 0.82f, 0.3f); // Altın sarısı
                 break;
             case BlockElementType.None:
-                blockColor = new Color(0.92f, 0.92f, 0.95f);
+                blockColor = new Color(0.84f, 0.89f, 0.98f); // Taban: açık mavi
                 break;
         }
 
