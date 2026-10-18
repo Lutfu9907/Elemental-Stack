@@ -63,7 +63,7 @@ public class PerfectPopup : MonoBehaviour
 
     public static void Spawn(Vector3 worldPos)
     {
-        Canvas canvas = FindObjectOfType<Canvas>();
+        Canvas canvas = FindFirstObjectByType<Canvas>();
         if (canvas == null)
         {
             Debug.LogError("No Canvas found for PerfectPopup");
