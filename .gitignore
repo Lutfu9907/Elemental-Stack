@@ -41,3 +41,6 @@ crashlytics-build.properties
 # OS files
 .DS_Store
 Thumbs.db
+
+# Visual Studio solution (Unity regenerates it)
+*.slnx
