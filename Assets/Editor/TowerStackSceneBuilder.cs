@@ -387,6 +387,7 @@ public static class TowerStackSceneBuilder
 
         TextMeshProUGUI games = CreateText("GamesText", logo, "GAMES", 64, new Color(0.85f, 0.88f, 0.95f), TextAlignmentOptions.Center);
         Place(games.rectTransform, new Vector2(0f, -180f), new Vector2(900f, 100f));
+        games.characterSpacing = 28f;
 
         StudioIntro intro = background.gameObject.AddComponent<StudioIntro>();
         intro.canvasGroup = group;
