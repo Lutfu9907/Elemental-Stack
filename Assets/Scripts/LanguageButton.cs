@@ -8,6 +8,10 @@ public class LanguageButton : MonoBehaviour
 {
     void Awake()
     {
-        GetComponent<Button>().onClick.AddListener(Localization.NextLanguage);
+        GetComponent<Button>().onClick.AddListener(() =>
+        {
+            if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+            Localization.NextLanguage();
+        });
     }
 }

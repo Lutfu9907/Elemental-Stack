@@ -62,6 +62,7 @@ public class GameManager : MonoBehaviour
     public void StartGame()
     {
         if (isGameStarted) return;
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
         isGameStarted = true;
 
         startPanel.SetActive(false);
@@ -107,6 +108,7 @@ public class GameManager : MonoBehaviour
 
     public void RestartGame()
     {
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
         Time.timeScale = 1f;
 
         fade.FadeIn(() =>
