@@ -65,11 +65,7 @@ public class TowerController : MonoBehaviour
             if (currentBlock.transform.position.x > moveRange) direction = -1f;
             if (currentBlock.transform.position.x < -moveRange) direction = 1f;
         }
-
-        if (Input.GetMouseButtonDown(0))
-        {
-            AddOrDropBlock();
-        }
+        // Dokunmalar TapInputArea üzerinden AddOrDropBlock'u çağırır
     }
 
     public void StartGame()
