@@ -29,6 +29,7 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
     private const float SkipAllowedAfter = 3.4f;   // logo tamamen oluşmadan dokunmak intro'yu geçmesin
     private const float ExitStart = 4.5f;
     private const float ExitDuration = 1.3f;        // toplam ~5,8 sn
+    private const float MaxFrameStep = 1f / 30f;
 
     private const float BlockDropHeight = 420f;
     private const float AccentLineWidth = 440f;
@@ -76,8 +77,10 @@ public class StudioIntro : MonoBehaviour, IPointerDownHandler
 
     void Update()
     {
-        // GameManager oyunu Time.timeScale = 0 ile beklettiği için ölçeksiz zaman kullanılır
-        elapsed += Time.unscaledDeltaTime;
+        // GameManager oyunu Time.timeScale = 0 ile beklettiği için ölçeksiz zaman kullanılır.
+        // Açılıştaki yükleme takılması ilk karede saniyelerce zaman gösterebilir; intro atlanmasın diye
+        // bir karede en fazla 1/30 sn ilerlenir.
+        elapsed += Mathf.Min(Time.unscaledDeltaTime, MaxFrameStep);
         Evaluate(elapsed);
 
         if (elapsed >= ExitStart + ExitDuration)
