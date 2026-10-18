@@ -10,12 +10,10 @@ public class ComboEffectManager : MonoBehaviour
     [Header("UI References")]
     public Image flashImage;               // Canvas → FlashImage
     public TextMeshProUGUI comboPopupText; // Canvas → ComboPopupText
-    private bool isPlayingText = false;
     private int lastShownComboTier = 0;
 
     [Header("Flash Settings")]
     public float flashDuration = 0.25f;
-    private int lastComboMilestone = 0;
 
     private void Awake()
     {
@@ -130,6 +128,5 @@ public class ComboEffectManager : MonoBehaviour
         rt.anchoredPosition = startPos;
         comboPopupText.alpha = 0f;
 
-        isPlayingText = false;
     }
 }

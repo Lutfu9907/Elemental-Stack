@@ -147,6 +147,9 @@ public static class TowerStackSceneBuilder
 
         tower.scoreText = scoreText;
 
+        // Studio intro goes last so it covers everything until it fades out
+        CreateStudioIntro(canvas.transform);
+
         UnityEventTools.AddPersistentListener(startButton.onClick, new UnityAction(gm.StartGame));
         UnityEventTools.AddPersistentListener(restartButton.onClick, new UnityAction(gm.RestartGame));
 
@@ -345,6 +348,54 @@ public static class TowerStackSceneBuilder
         PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
         PlayerSettings.allowedAutorotateToLandscapeLeft = false;
         PlayerSettings.allowedAutorotateToLandscapeRight = false;
+
+        // Our own LD Games intro replaces the "Made with Unity" splash (allowed on Unity 6 Personal)
+        PlayerSettings.SplashScreen.show = false;
+    }
+
+    private static void CreateStudioIntro(Transform parent)
+    {
+        Image background = CreateImage("StudioIntro", parent, new Color(0.04f, 0.05f, 0.09f));
+        Stretch(background.rectTransform);
+        CanvasGroup group = background.gameObject.AddComponent<CanvasGroup>();
+
+        RectTransform logo = CreateUI("Logo", background.transform);
+        Place(logo, new Vector2(0f, 60f), new Vector2(900f, 800f));
+
+        // A tiny three-block tower that drops in above the name, in element colours
+        var blockSpecs = new[]
+        {
+            (width: 210f, x: 0f, color: new Color(1f, 0.42f, 0.33f)),
+            (width: 180f, x: 14f, color: new Color(0.36f, 0.72f, 0.98f)),
+            (width: 150f, x: -10f, color: new Color(1f, 0.82f, 0.3f)),
+        };
+        var blocks = new RectTransform[blockSpecs.Length];
+        for (int i = 0; i < blockSpecs.Length; i++)
+        {
+            Image block = CreateImage("Block" + (i + 1), logo, blockSpecs[i].color);
+            block.raycastTarget = false;
+            Place(block.rectTransform, new Vector2(blockSpecs[i].x, 200f + i * 54f), new Vector2(blockSpecs[i].width, 48f));
+            blocks[i] = block.rectTransform;
+        }
+
+        TextMeshProUGUI ld = CreateText("LDText", logo, "L<color=#FFD14D>D</color>", 230, Color.white, TextAlignmentOptions.Center);
+        Place(ld.rectTransform, new Vector2(0f, 20f), new Vector2(800f, 260f));
+
+        Image line = CreateImage("AccentLine", logo, AccentColor);
+        line.raycastTarget = false;
+        Place(line.rectTransform, new Vector2(0f, -110f), new Vector2(440f, 6f));
+
+        TextMeshProUGUI games = CreateText("GamesText", logo, "GAMES", 64, new Color(0.85f, 0.88f, 0.95f), TextAlignmentOptions.Center);
+        Place(games.rectTransform, new Vector2(0f, -180f), new Vector2(900f, 100f));
+        games.characterSpacing = 28f;
+
+        StudioIntro intro = background.gameObject.AddComponent<StudioIntro>();
+        intro.canvasGroup = group;
+        intro.logoGroup = logo;
+        intro.blocks = blocks;
+        intro.ldText = ld;
+        intro.accentLine = line.rectTransform;
+        intro.gamesText = games;
     }
 
     // --------------------------------------------------------------------- UI
