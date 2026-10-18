@@ -46,6 +46,20 @@ public static class SoundSynth
     private static float[] IntroJingle()
     {
         var buffer = new float[(int)(4f * SampleRate)];
+
+        // Each block lands with a soft wooden "tok", then two smaller taps as it bounces
+        // (the bounce contacts of StudioIntro's EaseOutBounce). Every block lands a little higher.
+        var rng = new System.Random(3);
+        float[] bounceOffsets = { 0f, 0.218f, 0.327f };
+        float[] bounceLevels = { 0.45f, 0.16f, 0.07f };
+        for (int block = 0; block < 3; block++)
+        {
+            float land = 0.718f + block * 0.3f;
+            float pitch = 200f * Mathf.Pow(1.12f, block);
+            for (int b = 0; b < bounceOffsets.Length; b++)
+                AddThock(buffer, land + bounceOffsets[b], pitch, bounceLevels[b], rng);
+        }
+
         AddMallet(buffer, 0.72f, Midi(72), 0.5f, 6f);   // C5
         AddMallet(buffer, 1.02f, Midi(76), 0.5f, 6f);   // E5
         AddMallet(buffer, 1.32f, Midi(79), 0.5f, 6f);   // G5
@@ -120,6 +134,17 @@ public static class SoundSynth
             float attack = Mathf.Clamp01(t / 0.003f);
             float tone = Mathf.Sin(w) + 0.25f * Mathf.Sin(4f * w) * Mathf.Exp(-t * 30f) + 0.15f * Mathf.Sin(2f * w) * Mathf.Exp(-t * 12f);
             return attack * tone * Mathf.Exp(-t * decay) * amp;
+        });
+    }
+
+    // Short wooden knock: a tone dropping in pitch plus a tiny click, like the in-game block sound
+    private static void AddThock(float[] buffer, float start, float freq, float amp, System.Random rng)
+    {
+        AddVoice(buffer, start, 0.2f, t =>
+        {
+            float tone = Mathf.Sin(Phase(t, freq, freq * 0.6f, 0.1f)) * Mathf.Exp(-t * 30f);
+            float click = (float)(rng.NextDouble() * 2.0 - 1.0) * Mathf.Exp(-t * 400f) * 0.3f;
+            return (tone + click) * amp;
         });
     }
 
