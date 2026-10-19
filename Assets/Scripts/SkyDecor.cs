@@ -227,11 +227,11 @@ public class SkyDecor : MonoBehaviour
             new Color(0.2f, 0.35f, 0.95f, 0.28f),
             new Color(0.85f, 0.25f, 0.6f, 0.22f),
         };
-        foreach (Color color in nebula)
+        foreach (Color tint in nebula)
         {
             var go = new GameObject("Nebula").transform;
             go.SetParent(root, false);
-            SpriteRenderer sr = AddSprite(go, softGlow, decorMaterial, color);
+            SpriteRenderer sr = AddSprite(go, softGlow, decorMaterial, tint);
             sr.transform.localScale = Vector3.one * Range(rng, 9f, 13f);
             items.Add(new Item
             {
