@@ -207,6 +207,23 @@ public static class TowerStackSceneBuilder
         banner.label = bannerLabel;
         tower.elementBanner = banner;
 
+        // "Best" tag that rides next to the record line in the world
+        Image recordPill = CreateRounded("RecordLabel", gameUI, Color.white, 28f);
+        recordPill.raycastTarget = false;
+        recordPill.rectTransform.anchorMin = recordPill.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        recordPill.rectTransform.pivot = new Vector2(0f, 0.5f);
+        recordPill.rectTransform.sizeDelta = new Vector2(150f, 56f);
+        CreatePillLabel(recordPill, "Best", 34, Navy, "record");
+
+        // Altitude zones (clouds, sky, aurora, space, moon) and the record line
+        AltitudeTracker altitude = new GameObject("AltitudeTracker").AddComponent<AltitudeTracker>();
+        altitude.tower = tower;
+        altitude.banner = banner;
+        altitude.skyDecor = Object.FindFirstObjectByType<SkyDecor>();
+        altitude.celebrationBurst = AssetDatabase.LoadAssetAtPath<GameObject>(EffectsFolder + "/CandyBurst.prefab");
+        altitude.lineMaterial = rippleMaterial;
+        altitude.recordLabel = recordPill.rectTransform;
+
         // Start screen: tap anywhere to start. The panel itself is the (invisible) button.
         Image startPanel = CreateImage("StartPanel", canvas.transform, new Color(0f, 0f, 0f, 0f));
         Stretch(startPanel.rectTransform);
@@ -226,6 +243,12 @@ public static class TowerStackSceneBuilder
         AnchorTop(coinPill.rectTransform, new Vector2(0f, -178f), new Vector2(300f, 80f));
         RectTransform startCoinRow = CreateCoinRow("Coins", coinPill.transform, GetOrCreateCoinIcon(), "0", 42, Navy, out TextMeshProUGUI startCoinsText);
         Stretch(startCoinRow);
+
+        // Next altitude goal, e.g. "Next: Clouds · floor 25"
+        Image goalPill = CreateRounded("NextGoal", startContent, Color.white, 34f);
+        goalPill.raycastTarget = false;
+        AnchorTop(goalPill.rectTransform, new Vector2(0f, -272f), new Vector2(560f, 68f));
+        TextMeshProUGUI nextGoalText = CreatePillLabel(goalPill, "Next: Clouds · floor 25", 34, MutedNavy, null);
 
         // Language switch (EN / TR); its own button, so tapping it never starts the game
         Image languagePill = CreateRounded("LanguageButton", startContent, Color.white, 46f);
@@ -260,7 +283,7 @@ public static class TowerStackSceneBuilder
         title.fontSizeMax = 180f;
         title.fontSizeMin = 110f;
         title.gameObject.AddComponent<LocalizedText>().key = "title";
-        Place(title.rectTransform, new Vector2(0f, 500f), new Vector2(1000f, 480f));
+        Place(title.rectTransform, new Vector2(0f, 440f), new Vector2(1000f, 440f));
 
         // Tap hint sits at the bottom, away from the tower, and gently pulses
         Image tapHint = CreateRounded("TapHint", startContent, Yellow, 75f);
@@ -376,6 +399,8 @@ public static class TowerStackSceneBuilder
         gm.coinsEarnedText = coinsEarnedText;
         gm.startCoinsText = startCoinsText;
         gm.titleText = title;
+        gm.nextGoalText = nextGoalText;
+        gm.altitude = altitude;
         gm.fade = fade;
         gm.tower = tower;
 

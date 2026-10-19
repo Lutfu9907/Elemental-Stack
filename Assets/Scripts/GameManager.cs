@@ -18,6 +18,7 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI startBestText;
     public TextMeshProUGUI startCoinsText;
     public TextMeshProUGUI titleText;
+    public TextMeshProUGUI nextGoalText;   // "Sıradaki hedef: Bulutlar · 25. kat"
 
     [Header("Game Over")]
     public TextMeshProUGUI finalScoreText;
@@ -36,6 +37,7 @@ public class GameManager : MonoBehaviour
     [Header("Other")]
     public FadeController fade;
     public TowerController tower;
+    public AltitudeTracker altitude;
 
     private int score = 0;
     private int highScore = 0;
@@ -110,6 +112,8 @@ public class GameManager : MonoBehaviour
         int floors = tower != null ? tower.floors : 0;
         int perfects = tower != null ? tower.perfectCount : 0;
         int coinsEarned = floors * coinsPerFloor + perfects * coinsPerPerfect;
+        if (altitude != null)
+            coinsEarned += altitude.BonusCoins;   // ulaşılan bölgelerin ödülü
         PlayerData.RecordGame(score, floors, perfects);
         PlayerData.AddCoins(coinsEarned);
 
@@ -171,6 +175,15 @@ public class GameManager : MonoBehaviour
         if (startCoinsText != null) startCoinsText.text = PlayerData.Coins.ToString("N0");
         // Koyu gökyüzü temasında lacivert başlık okunmaz; beyaz yazılır
         if (titleText != null) titleText.color = SkinCatalog.CurrentSky.darkSky ? Color.white : titleColor;
+
+        // Sıradaki yükseklik hedefi; hepsine ulaşıldıysa zirve
+        if (nextGoalText != null)
+        {
+            int next = AltitudeZones.NextIndex(PlayerData.BestFloor);
+            nextGoalText.text = next >= 0
+                ? Localization.Format("next_zone", AltitudeZones.Name(next), AltitudeZones.All[next].floor)
+                : Localization.Format("peak_zone", AltitudeZones.Name(AltitudeZones.All.Length - 1));
+        }
         if (finalScoreText != null) finalScoreText.text = score.ToString();
         if (finalBestText != null) finalBestText.text = best;
     }
