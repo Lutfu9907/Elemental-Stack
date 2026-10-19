@@ -89,6 +89,17 @@ public static class PlayerData
         Save();
     }
 
+    // Sadece test için: tüm kaydı (coin, skor, temalar) siler
+    public static void ResetForTesting()
+    {
+        PlayerPrefs.DeleteKey(SaveKey);
+        PlayerPrefs.DeleteKey(LegacyHighScoreKey);
+        PlayerPrefs.Save();
+        data = null;
+        CoinsChanged?.Invoke();
+        SkinCatalog.NotifyChanged();
+    }
+
     // Her oyunun sonunda bir kez çağrılır
     public static void RecordGame(int score, int floors, int perfects)
     {

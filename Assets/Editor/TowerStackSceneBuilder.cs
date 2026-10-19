@@ -91,6 +91,24 @@ public static class TowerStackSceneBuilder
         return true;
     }
 
+    // Editor-only test helpers for the shop; they work in and out of Play mode
+    [MenuItem("Tower Stack/Test: Add 5000 Coins")]
+    private static void AddTestCoins()
+    {
+        PlayerData.AddCoins(5000);
+        Debug.Log("Tower Stack: 5000 coin eklendi. Toplam: " + PlayerData.Coins);
+    }
+
+    [MenuItem("Tower Stack/Test: Reset Save Data")]
+    private static void ResetSaveData()
+    {
+        if (!EditorUtility.DisplayDialog("Tower Stack",
+                "Coin, en yüksek skor ve satın alınan temalar silinsin mi?", "Evet, sıfırla", "Vazgeç"))
+            return;
+        PlayerData.ResetForTesting();
+        Debug.Log("Tower Stack: kayıt sıfırlandı.");
+    }
+
     [MenuItem("Tower Stack/Build Game Scene")]
     public static void Build()
     {
