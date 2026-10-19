@@ -38,6 +38,9 @@ public class GameManager : MonoBehaviour
     public FadeController fade;
     public TowerController tower;
     public AltitudeTracker altitude;
+    public MissionTracker missions;
+    public DailyRewardPanel dailyReward;
+    public TextMeshProUGUI missionsButtonText;   // "Görevler 1/3"
 
     private int score = 0;
     private int highScore = 0;
@@ -75,6 +78,9 @@ public class GameManager : MonoBehaviour
         gameOverPanel.gameObject.SetActive(false);
 
         Time.timeScale = 0f;
+        PlayerData.RefreshDay();   // yeni günse giriş serisi ve görevler yenilenir
+        if (dailyReward != null)
+            dailyReward.ShowIfAvailable();
         RefreshTexts();
     }
 
@@ -116,6 +122,8 @@ public class GameManager : MonoBehaviour
             coinsEarned += altitude.BonusCoins;   // ulaşılan bölgelerin ödülü
         PlayerData.RecordGame(score, floors, perfects);
         PlayerData.AddCoins(coinsEarned);
+        if (missions != null)
+            missions.OnGameOver(coinsEarned);
 
         RefreshTexts();
         if (newBestBadge != null)
@@ -175,6 +183,9 @@ public class GameManager : MonoBehaviour
         if (startCoinsText != null) startCoinsText.text = PlayerData.Coins.ToString("N0");
         // Koyu gökyüzü temasında lacivert başlık okunmaz; beyaz yazılır
         if (titleText != null) titleText.color = SkinCatalog.CurrentSky.darkSky ? Color.white : titleColor;
+
+        if (missionsButtonText != null)
+            missionsButtonText.text = Localization.Format("missions_button", MissionTracker.DoneCount(), PlayerData.MissionCount);
 
         // Sıradaki yükseklik hedefi; hepsine ulaşıldıysa zirve
         if (nextGoalText != null)
