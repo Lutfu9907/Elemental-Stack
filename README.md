@@ -15,6 +15,20 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 - Reward for long streaks: after five perfects in a row each perfect grows the block back a little
 - Saved best score and a "New best!" badge
 
+**Elements**
+
+| Element | While sliding | On a perfect |
+|---|---|---|
+| Ice | 30% slower | – |
+| Fire | 20% faster | perfect window twice as wide |
+| Wind | speed comes in gusts | +2 points |
+| Electric | normal speed | the block grows back a little |
+
+- The first nine floors are plain; Ice, Fire, Wind and Electric are introduced on floors 10, 20, 30 and 40 with a "New element" bubble
+- A helping hand: after bad cuts or when the block gets narrow, Ice and Electric come more often
+- Only element blocks are coloured. While sliding they glow, wear a bright frame, float their icon and leave a particle trail (embers, frost, gusts, sparks); landing bursts into a ring of their colour
+- Editor shortcut for testing: **Tower Stack → Test: Elements Early** brings the elements in on floors 2 to 8
+
 **Feel and sound**
 - All sound effects, the intro jingle and the background music are synthesised in code, so there are no third-party audio licences
 - Short haptic feedback on Android (light, medium and heavy)
@@ -32,7 +46,7 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 
 ## Coming next
 
-- **Element mechanics** (in testing): Ice slides slowly, Fire is faster but gives an easier perfect, Wind gusts and pays +2 for a perfect, Electric grows the block on a perfect. Elements are introduced one by one from floor 10, with a helping hand when the player struggles.
+- Element streaks: special powers when three blocks of the same element land in a row
 - Daily challenge, altitude milestones, coins and block/theme skins, sharing and a Google Play leaderboard
 - Rewarded "continue" ads, occasional interstitials and a paid ad-free version
 - Google Play release first, App Store after that
