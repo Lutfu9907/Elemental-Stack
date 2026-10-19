@@ -67,6 +67,7 @@ public static class TowerStackSceneBuilder
     private static readonly Color YellowText = new Color(0.353f, 0.263f, 0f);
     private static readonly Color Coral = new Color(0.91f, 0.34f, 0.29f);
     private static readonly Color CoinText = new Color(0.78f, 0.5f, 0.05f);
+    private static readonly Color ItemColor = new Color(0.95f, 0.96f, 0.98f);
 
     private static TMP_FontAsset uiFont;
     private static Material outlineMaterial;
@@ -247,6 +248,18 @@ public static class TowerStackSceneBuilder
         CreatePillLabel(tapHint, "Tap to start", 58, YellowText, "tap_to_start");
         tapHint.gameObject.AddComponent<PulseScale>();
 
+        // Shop button above the tap hint; it is its own button, so it never starts the game
+        Image shopPill = CreateRounded("ShopButton", startContent, Color.white, 55f);
+        RectTransform shopRt = shopPill.rectTransform;
+        shopRt.anchorMin = shopRt.anchorMax = shopRt.pivot = new Vector2(0.5f, 0f);
+        shopRt.anchoredPosition = new Vector2(0f, 360f);
+        shopRt.sizeDelta = new Vector2(360f, 110f);
+        Button shopButton = shopPill.gameObject.AddComponent<Button>();
+        shopButton.targetGraphic = shopPill;
+        CreatePillLabel(shopPill, "Shop", 50, Navy, "shop");
+
+        ShopPanel shop = CreateShopPanel(canvas.transform);
+
         // Game over screen: a white card over a navy dim
         Image gameOverBg = CreateImage("GameOverPanel", canvas.transform, new Color(Navy.r, Navy.g, Navy.b, 0.55f));
         Stretch(gameOverBg.rectTransform);
@@ -338,6 +351,7 @@ public static class TowerStackSceneBuilder
         gm.newBestBadge = newBestBadge.gameObject;
         gm.coinsEarnedText = coinsEarnedText;
         gm.startCoinsText = startCoinsText;
+        gm.titleText = title;
         gm.fade = fade;
         gm.tower = tower;
 
@@ -348,6 +362,7 @@ public static class TowerStackSceneBuilder
 
         UnityEventTools.AddPersistentListener(startButton.onClick, new UnityAction(gm.StartGame));
         UnityEventTools.AddPersistentListener(restartButton.onClick, new UnityAction(gm.RestartGame));
+        UnityEventTools.AddPersistentListener(shopButton.onClick, new UnityAction(shop.Open));
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -808,6 +823,115 @@ public static class TowerStackSceneBuilder
     }
 
     // White eighth-note icon (head, stem and flag), drawn with 4x4 supersampling for smooth edges
+    // ------------------------------------------------------------------ shop
+
+    // Shop overlay: a white card with the coin total, a grid of block themes, a grid of sky themes
+    // and a Close button. Items are spawned at runtime from SkinCatalog using the hidden template.
+    private static ShopPanel CreateShopPanel(Transform canvas)
+    {
+        Image background = CreateImage("ShopPanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(900f, 1560f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Shop", 84, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "shop";
+        Place(title.rectTransform, new Vector2(0f, 690f), new Vector2(800f, 110f));
+
+        Sprite coinIcon = GetOrCreateCoinIcon();
+        Image coinPill = CreateRounded("CoinPill", card.transform, ItemColor, 40f);
+        coinPill.raycastTarget = false;
+        Place(coinPill.rectTransform, new Vector2(0f, 590f), new Vector2(300f, 80f));
+        RectTransform coinRow = CreateCoinRow("Coins", coinPill.transform, coinIcon, "0", 42, Navy, out TextMeshProUGUI coinsText);
+        Stretch(coinRow);
+
+        TextMeshProUGUI blocksLabel = CreateText("BlocksLabel", card.transform, "Blocks", 48, MutedNavy, TextAlignmentOptions.Left);
+        blocksLabel.gameObject.AddComponent<LocalizedText>().key = "shop_blocks";
+        Place(blocksLabel.rectTransform, new Vector2(0f, 490f), new Vector2(800f, 60f));
+        RectTransform blockGrid = CreateItemGrid("BlockGrid", card.transform);
+        Place(blockGrid, new Vector2(0f, 190f), new Vector2(800f, 540f));
+
+        TextMeshProUGUI skyLabel = CreateText("SkyLabel", card.transform, "Sky", 48, MutedNavy, TextAlignmentOptions.Left);
+        skyLabel.gameObject.AddComponent<LocalizedText>().key = "shop_sky";
+        Place(skyLabel.rectTransform, new Vector2(0f, -115f), new Vector2(800f, 60f));
+        RectTransform skyGrid = CreateItemGrid("SkyGrid", card.transform);
+        Place(skyGrid, new Vector2(0f, -285f), new Vector2(800f, 260f));
+
+        TextMeshProUGUI message = CreateText("Message", card.transform, "Not enough coins", 44, Coral, TextAlignmentOptions.Center);
+        Place(message.rectTransform, new Vector2(0f, -460f), new Vector2(800f, 60f));
+
+        Image closePill = CreateRounded("CloseButton", card.transform, Yellow, 60f);
+        Place(closePill.rectTransform, new Vector2(0f, -640f), new Vector2(420f, 120f));
+        Button closeButton = closePill.gameObject.AddComponent<Button>();
+        closeButton.targetGraphic = closePill;
+        CreatePillLabel(closePill, "Close", 54, YellowText, "close");
+
+        ShopItemView template = CreateShopItemTemplate(card.transform, coinIcon);
+
+        ShopPanel shop = background.gameObject.AddComponent<ShopPanel>();
+        shop.blockGrid = blockGrid;
+        shop.skyGrid = skyGrid;
+        shop.itemTemplate = template;
+        shop.coinsText = coinsText;
+        shop.messageText = message;
+        UnityEventTools.AddPersistentListener(closeButton.onClick, new UnityAction(shop.Close));
+
+        background.gameObject.SetActive(false);
+        return shop;
+    }
+
+    private static RectTransform CreateItemGrid(string name, Transform parent)
+    {
+        RectTransform grid = CreateUI(name, parent);
+        var layout = grid.gameObject.AddComponent<GridLayoutGroup>();
+        layout.cellSize = new Vector2(250f, 260f);
+        layout.spacing = new Vector2(25f, 20f);
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        layout.constraintCount = 3;
+        return grid;
+    }
+
+    // One theme card: a small three-stripe preview, the name, and either a price or a status
+    private static ShopItemView CreateShopItemTemplate(Transform parent, Sprite coinIcon)
+    {
+        Image item = CreateRounded("ItemTemplate", parent, ItemColor, 32f);
+        Place(item.rectTransform, Vector2.zero, new Vector2(250f, 260f));
+        Button button = item.gameObject.AddComponent<Button>();
+        button.targetGraphic = item;
+
+        var swatches = new Image[3];
+        for (int i = 0; i < swatches.Length; i++)
+        {
+            swatches[i] = CreateRounded("Swatch" + (i + 1), item.transform, Color.white, 8f);
+            swatches[i].raycastTarget = false;
+            Place(swatches[i].rectTransform, new Vector2(0f, 78f - i * 32f), new Vector2(150f, 28f));
+        }
+
+        TextMeshProUGUI nameText = CreateText("Name", item.transform, "Classic", 38, Navy, TextAlignmentOptions.Center);
+        nameText.enableAutoSizing = true;
+        nameText.fontSizeMax = 38f;
+        nameText.fontSizeMin = 24f;
+        Place(nameText.rectTransform, new Vector2(0f, -45f), new Vector2(230f, 50f));
+
+        RectTransform priceRow = CreateCoinRow("Price", item.transform, coinIcon, "300", 36, CoinText, out TextMeshProUGUI priceText);
+        Place(priceRow, new Vector2(0f, -100f), new Vector2(230f, 50f));
+
+        TextMeshProUGUI status = CreateText("Status", item.transform, "Selected", 34, MutedNavy, TextAlignmentOptions.Center);
+        Place(status.rectTransform, new Vector2(0f, -100f), new Vector2(230f, 50f));
+
+        ShopItemView view = item.gameObject.AddComponent<ShopItemView>();
+        view.background = item;
+        view.swatches = swatches;
+        view.nameText = nameText;
+        view.priceRow = priceRow.gameObject;
+        view.priceText = priceText;
+        view.statusText = status;
+        view.button = button;
+        return view;
+    }
+
     // A coin icon followed by a number, centred as a group whatever the number's width
     private static RectTransform CreateCoinRow(string name, Transform parent, Sprite icon, string text, float size, Color color, out TextMeshProUGUI label)
     {

@@ -15,6 +15,7 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 - Reward for long streaks: after five perfects in a row each perfect grows the block back a little
 - Saved best score and a "New best!" badge
 - Coins: one per floor plus one per perfect, counted up on the game-over card and shown on the start screen
+- Coin shop: five block themes (Classic, Candy, Wood, Neon, Gold) and three sky themes (Day, Sunset, Space); element colours stay the same in every theme
 
 **Elements**
 
@@ -48,7 +49,7 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 ## Coming next
 
 - Element streaks: special powers when three blocks of the same element land in a row
-- Altitude milestones, daily missions, a coin shop with block and sky skins, sharing and a Google Play leaderboard
+- Altitude milestones, daily missions, sharing and a Google Play leaderboard
 - Rewarded "continue" ads, occasional interstitials and a paid ad-free version
 - Google Play release first, App Store after that
 
