@@ -15,6 +15,7 @@ public class SettingsPanel : MonoBehaviour
     public Image sfxPill;
     public Image hapticsPill;
     public TextMeshProUGUI versionText;
+    public TextMeshProUGUI restoreText;
 
     private static readonly Color OnColor = new Color(1f, 0.824f, 0.302f);
     private static readonly Color OffColor = new Color(0.85f, 0.88f, 0.93f);
@@ -86,6 +87,17 @@ public class SettingsPanel : MonoBehaviour
         Application.OpenURL(GameLinks.PrivacyPolicy);
     }
 
+    // Reklamsız sürümü yeniden yüklenen telefona geri getirir
+    public void RestorePurchases()
+    {
+        Click();
+        StoreService.Restore(ok =>
+        {
+            if (restoreText != null)
+                restoreText.text = Localization.Get(ok ? "ads_removed" : "restore_none");
+        });
+    }
+
     private void Refresh()
     {
         AudioManager audio = AudioManager.Instance;
@@ -94,6 +106,8 @@ public class SettingsPanel : MonoBehaviour
         SetToggle(hapticsValue, hapticsPill, Haptics.Enabled);
         qualityValue.text = Localization.Get(GraphicsQuality.High ? "quality_high" : "quality_low");
         languageValue.text = Localization.Get("language_name");
+        if (restoreText != null)
+            restoreText.text = Localization.Get("restore_purchases");
         if (versionText != null)
             versionText.text = "v" + Application.version;
     }
