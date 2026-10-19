@@ -55,6 +55,14 @@ public class TowerController : MonoBehaviour
     public int floors = 0;    // yerleşmiş kat sayısı; eksen, hız, element ve arka plan buna göre
     public int perfectCount = 0;   // bu oyundaki toplam perfect (coin hesabı için)
 
+    // Her kat yerleşince: (kaçıncı kat, yerleşen blok). Yükseklik hedefleri ve görevler dinler.
+    public event System.Action<int, Transform> FloorPlaced;
+    // Bir blok perfect yerleşince: (element). Görevler dinler.
+    public event System.Action<Block.BlockElementType> PerfectPlaced;
+
+    // Taban bloğunun ölçüsü (rekor çizgisi gibi kulenin genişliğine göre çizilen şeyler için)
+    public Vector3 FullScale => fullScale;
+
     private GameManager gm;
     private ScorePunchEffect scorePunch;
     private CameraFollow camFollow;
@@ -218,6 +226,7 @@ public class TowerController : MonoBehaviour
 
             combo++;
             perfectCount++;
+            PerfectPlaced?.Invoke(currentElement);
             badPlacementsInRow = 0;
             bonusPoints = ElementRules.PerfectBonusPoints(currentElement);
 
@@ -287,6 +296,7 @@ public class TowerController : MonoBehaviour
             StartCoroutine(PunchScale(block));
 
         floors++;
+        FloorPlaced?.Invoke(floors, block);
         score += 1 + bonusPoints;
         if (gm != null)
             gm.UpdateScore(score);
