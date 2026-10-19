@@ -15,8 +15,8 @@ public static class Localization
     {
         { "title",        new[] { "Elemental\nStack", "Elemental\nStack" } },
         { "tap_to_start", new[] { "Tap to start", "Başlamak için dokun" } },
-        { "best",         new[] { "Best: {0}", "En iyi: {0}" } },
-        { "best_label",   new[] { "Best", "En iyi" } },
+        { "best",         new[] { "Best: {0}", "En yüksek skor: {0}" } },
+        { "best_label",   new[] { "Best", "En yüksek skor" } },
         { "score_label",  new[] { "Score", "Skor" } },
         { "game_over",    new[] { "Game over", "Oyun bitti" } },
         { "new_best",     new[] { "New best!", "Yeni rekor!" } },

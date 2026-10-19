@@ -190,7 +190,7 @@ public static class TowerStackSceneBuilder
 
         Image bestPill = CreateRounded("BestPill", startContent, Color.white, 46f);
         bestPill.raycastTarget = false;
-        AnchorTop(bestPill.rectTransform, new Vector2(0f, -70f), new Vector2(400f, 92f));
+        AnchorTop(bestPill.rectTransform, new Vector2(0f, -70f), new Vector2(520f, 92f));   // wide enough for "En yüksek skor: 128"
         TextMeshProUGUI startBestText = CreatePillLabel(bestPill, "Best: 0", 44, Navy, null);
 
         // Language switch (EN / TR); its own button, so tapping it never starts the game
