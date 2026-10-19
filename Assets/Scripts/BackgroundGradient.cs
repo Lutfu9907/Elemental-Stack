@@ -84,7 +84,7 @@ public class BackgroundGradient : MonoBehaviour
 
     private void GetTargetColors(out Color top, out Color bottom)
     {
-        int floors = tower != null ? tower.score : 0;
+        int floors = tower != null ? tower.floors : 0;
         float p = floors / (float)Mathf.Max(1, floorsPerPalette);
         int i = Mathf.FloorToInt(p) % palettes.Length;
         int j = (i + 1) % palettes.Length;

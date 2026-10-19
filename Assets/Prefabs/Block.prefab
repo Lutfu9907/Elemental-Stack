@@ -126,5 +126,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Block
   elementType: 0
+  floor: 0
   rend: {fileID: 5562501499407360908}
   blockColor: {r: 0, g: 0, b: 0, a: 0}

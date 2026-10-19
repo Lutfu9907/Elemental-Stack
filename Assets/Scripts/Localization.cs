@@ -15,8 +15,8 @@ public static class Localization
     {
         { "title",        new[] { "Elemental\nStack", "Elemental\nStack" } },
         { "tap_to_start", new[] { "Tap to start", "Başlamak için dokun" } },
-        { "best",         new[] { "Best: {0}", "En iyi: {0}" } },
-        { "best_label",   new[] { "Best", "En iyi" } },
+        { "best",         new[] { "Best: {0}", "En yüksek skor: {0}" } },
+        { "best_label",   new[] { "Best", "En yüksek skor" } },
         { "score_label",  new[] { "Score", "Skor" } },
         { "game_over",    new[] { "Game over", "Oyun bitti" } },
         { "new_best",     new[] { "New best!", "Yeni rekor!" } },
@@ -27,6 +27,15 @@ public static class Localization
         { "combo_amazing", new[] { "Amazing!", "Muhteşem!" } },
         { "combo_super",  new[] { "Super stack!", "Süper kule!" } },
         { "language",     new[] { "EN", "TR" } },
+        { "new_element",  new[] { "New element:", "Yeni element:" } },
+        { "element_ice",           new[] { "Ice", "Buz" } },
+        { "element_ice_desc",      new[] { "Slides slowly", "Yavaş kayar" } },
+        { "element_fire",          new[] { "Fire", "Ateş" } },
+        { "element_fire_desc",     new[] { "Fast, but perfects are easier", "Hızlı ama perfect daha kolay" } },
+        { "element_wind",          new[] { "Wind", "Rüzgâr" } },
+        { "element_wind_desc",     new[] { "Gusty speed, perfect gives +2", "Hızı değişir, perfect +2 puan" } },
+        { "element_electric",      new[] { "Electric", "Elektrik" } },
+        { "element_electric_desc", new[] { "Perfect makes the block grow", "Perfect bloğu büyütür" } },
     };
 
     public static event Action LanguageChanged;

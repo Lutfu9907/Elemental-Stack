@@ -62,7 +62,7 @@ public class PerfectPopup : MonoBehaviour
     }
 
     // combo 2 ve üstündeyse yazının sonuna "x{combo}" eklenir: "Perfect! x3"
-    public static void Spawn(Vector3 worldPos, int combo = 1)
+    public static void Spawn(Vector3 worldPos, int combo = 1, int bonusPoints = 0)
     {
         Canvas canvas = FindFirstObjectByType<Canvas>();
         if (canvas == null)
@@ -85,7 +85,9 @@ public class PerfectPopup : MonoBehaviour
         if (label != null)
         {
             string text = Localization.Get("perfect");
-            label.text = combo > 1 ? text + " x" + combo : text;
+            if (combo > 1) text += " x" + combo;
+            if (bonusPoints > 0) text += "  +" + bonusPoints;
+            label.text = text;
         }
 
         // World → Screen
