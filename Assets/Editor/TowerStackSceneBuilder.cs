@@ -27,6 +27,16 @@ public static class TowerStackSceneBuilder
     private const string BlockMaterialPath = MaterialsFolder + "/Block.mat";
     private const string BackgroundMaterialPath = MaterialsFolder + "/Background.mat";
     private const string RippleMaterialPath = MaterialsFolder + "/Ripple.mat";
+    private const string ParticleMaterialPath = MaterialsFolder + "/Particle.mat";
+    private const string EffectsFolder = "Assets/Effects";
+
+    private struct ElementEffects
+    {
+        public GameObject fire;
+        public GameObject ice;
+        public GameObject wind;
+        public GameObject electric;
+    }
     private const string PipelinePath = "Assets/Settings/URP-Mobile3D.asset";
     private const string RendererPath = "Assets/Settings/URP-Mobile3D_Renderer.asset";
     private const string PostProcessDataPath = "Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset";
@@ -56,6 +66,24 @@ public static class TowerStackSceneBuilder
     private static TMP_FontAsset uiFont;
     private static Material outlineMaterial;
     private static Sprite roundedSprite;
+
+    private const string TestEarlyMenu = "Tower Stack/Test: Elements Early";
+
+    // Editor-only switch: elements arrive on floors 2, 4, 6 and 8 so all four can be tried quickly
+    [MenuItem(TestEarlyMenu)]
+    private static void ToggleTestElementsEarly()
+    {
+        bool enabled = !EditorPrefs.GetBool(ElementRules.TestEarlyPrefKey, false);
+        EditorPrefs.SetBool(ElementRules.TestEarlyPrefKey, enabled);
+        Menu.SetChecked(TestEarlyMenu, enabled);
+    }
+
+    [MenuItem(TestEarlyMenu, true)]
+    private static bool ToggleTestElementsEarlyValidate()
+    {
+        Menu.SetChecked(TestEarlyMenu, EditorPrefs.GetBool(ElementRules.TestEarlyPrefKey, false));
+        return true;
+    }
 
     [MenuItem("Tower Stack/Build Game Scene")]
     public static void Build()
@@ -87,10 +115,15 @@ public static class TowerStackSceneBuilder
         outlineMaterial = CreateOutlineMaterial(uiFont);
         roundedSprite = GetOrCreateRoundedSprite();
         CreatePerfectPopupPrefab();
+        ElementEffects effects = CreateElementEffects();
 
         SetupLighting();
         TowerController tower = CreateTower(blockPrefab);
         tower.rippleMaterial = rippleMaterial;
+        tower.fireEffect = effects.fire;
+        tower.iceEffect = effects.ice;
+        tower.windEffect = effects.wind;
+        tower.electricEffect = effects.electric;
         CreateCamera(backgroundMaterial, tower);
 
         // ---------- UI ----------
@@ -115,6 +148,19 @@ public static class TowerStackSceneBuilder
         TextMeshProUGUI highScoreText = CreateText("HighScoreText", hud, "Best: 0", 46, Color.white, TextAlignmentOptions.Center);
         UseOutline(highScoreText);
         AnchorTop(highScoreText.rectTransform, new Vector2(0f, -310f), new Vector2(800f, 70f));
+
+        // "New element: Ice / slides slowly" bubble, shown the first time each element appears
+        Image bannerPill = CreateRounded("ElementBanner", hud, Color.white, 48f);
+        bannerPill.raycastTarget = false;
+        AnchorTop(bannerPill.rectTransform, new Vector2(0f, -410f), new Vector2(780f, 170f));
+        CanvasGroup bannerGroup = bannerPill.gameObject.AddComponent<CanvasGroup>();
+        bannerGroup.blocksRaycasts = false;
+        bannerGroup.interactable = false;
+        TextMeshProUGUI bannerLabel = CreatePillLabel(bannerPill, "New element: Ice\n<size=70%>Slides slowly</size>", 54, Navy, null);
+        ElementBanner banner = bannerPill.gameObject.AddComponent<ElementBanner>();
+        banner.canvasGroup = bannerGroup;
+        banner.label = bannerLabel;
+        tower.elementBanner = banner;
 
         // Start screen: tap anywhere to start. The panel itself is the (invisible) button.
         Image startPanel = CreateImage("StartPanel", canvas.transform, new Color(0f, 0f, 0f, 0f));
@@ -352,7 +398,7 @@ public static class TowerStackSceneBuilder
         tower.blockHeight = BlockHeight;
         tower.moveSpeed = 3f;
         tower.speedIncreasePerScore = 0.05f;
-        tower.maxMoveSpeed = 7f;
+        tower.maxMoveSpeed = 6f;
         tower.moveRange = 2.6f;
 
         // Tall pedestal the first block lands on; its top surface is at y = 0
@@ -430,6 +476,130 @@ public static class TowerStackSceneBuilder
         GraphicsSettings.defaultRenderPipeline = pipeline;
         QualitySettings.renderPipeline = null; // quality levels fall back to the default above
         AssetDatabase.SaveAssets();
+    }
+
+    // ------------------------------------------------------- element effects
+
+    // Particle trails for the sliding element blocks. They overwrite the old placeholder
+    // prefabs in Assets/Effects (which had no material) so their file names and GUIDs stay.
+    private static ElementEffects CreateElementEffects()
+    {
+        Material material = CreateMaterial(ParticleMaterialPath, "Sprites/Default");
+        if (roundedSprite != null)
+            material.mainTexture = roundedSprite.texture;   // soft round dots
+        EditorUtility.SetDirty(material);
+        Directory.CreateDirectory(EffectsFolder);
+
+        return new ElementEffects
+        {
+            // Fire: warm embers rising off the block
+            fire = SaveEffect("FireEffect", material, ps =>
+            {
+                var main = ps.main;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.8f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.1f, 0.22f);
+                main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.78f, 0.3f), new Color(1f, 0.35f, 0.2f));
+                var emission = ps.emission;
+                emission.rateOverTime = 28f;
+                SetVelocity(ps, new Vector2(-0.15f, 0.15f), new Vector2(0.6f, 1.4f), new Vector2(-0.15f, 0.15f));
+            }),
+            // Ice: small frosty crystals drifting down
+            ice = SaveEffect("IceEffect", material, ps =>
+            {
+                var main = ps.main;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 1.2f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.14f);
+                main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.88f, 0.98f, 1f), new Color(0.6f, 0.85f, 1f));
+                var emission = ps.emission;
+                emission.rateOverTime = 18f;
+                SetVelocity(ps, new Vector2(-0.1f, 0.1f), new Vector2(-0.4f, -0.1f), new Vector2(-0.1f, 0.1f));
+            }),
+            // Wind: pale streaks blown sideways
+            wind = SaveEffect("WindEffect", material, ps =>
+            {
+                var main = ps.main;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.7f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.08f);
+                main.startColor = new Color(1f, 1f, 1f, 0.75f);
+                var emission = ps.emission;
+                emission.rateOverTime = 20f;
+                SetVelocity(ps, new Vector2(-2.5f, 2.5f), new Vector2(0f, 0.3f), new Vector2(-2.5f, 2.5f));
+                var renderer = ps.GetComponent<ParticleSystemRenderer>();
+                renderer.renderMode = ParticleSystemRenderMode.Stretch;
+                renderer.lengthScale = 3f;
+                renderer.velocityScale = 0.15f;
+            }),
+            // Electric: quick bright sparks in bursts
+            electric = SaveEffect("ElectricEffect", material, ps =>
+            {
+                var main = ps.main;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(0.15f, 0.3f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.09f);
+                main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.5f), Color.white);
+                var emission = ps.emission;
+                emission.rateOverTime = 0f;
+                emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 6, 10, 0, 0.3f) });
+                SetVelocity(ps, new Vector2(-3f, 3f), new Vector2(-3f, 3f), new Vector2(-3f, 3f));
+                var renderer = ps.GetComponent<ParticleSystemRenderer>();
+                renderer.renderMode = ParticleSystemRenderMode.Stretch;
+                renderer.lengthScale = 2f;
+                renderer.velocityScale = 0.05f;
+            }),
+        };
+    }
+
+    // Shared setup: emits from the block's volume, stays behind in world space,
+    // shrinks and fades out over its lifetime
+    private static GameObject SaveEffect(string name, Material material, System.Action<ParticleSystem> configure)
+    {
+        var go = new GameObject(name);
+        ParticleSystem ps = go.AddComponent<ParticleSystem>();
+        var renderer = go.GetComponent<ParticleSystemRenderer>();
+        renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+
+        var main = ps.main;
+        main.loop = true;
+        main.playOnAwake = true;
+        main.startSpeed = 0f;
+        main.maxParticles = 200;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.scalingMode = ParticleSystemScalingMode.Shape;   // box follows the block, particle size does not
+
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Box;
+        shape.scale = Vector3.one;
+
+        var size = ps.sizeOverLifetime;
+        size.enabled = true;
+        size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0.2f));
+
+        var fade = new Gradient();
+        fade.SetKeys(
+            new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 0.6f), new GradientAlphaKey(0f, 1f) });
+        var color = ps.colorOverLifetime;
+        color.enabled = true;
+        color.color = fade;
+
+        configure(ps);
+
+        string path = EffectsFolder + "/" + name + ".prefab";
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
+        Object.DestroyImmediate(go);
+        return prefab;
+    }
+
+    // Velocity ranges per axis in world space (all three axes must use the same curve mode)
+    private static void SetVelocity(ParticleSystem ps, Vector2 x, Vector2 y, Vector2 z)
+    {
+        var velocity = ps.velocityOverLifetime;
+        velocity.enabled = true;
+        velocity.space = ParticleSystemSimulationSpace.World;
+        velocity.x = new ParticleSystem.MinMaxCurve(x.x, x.y);
+        velocity.y = new ParticleSystem.MinMaxCurve(y.x, y.y);
+        velocity.z = new ParticleSystem.MinMaxCurve(z.x, z.y);
     }
 
     // "Perfect! x3" bubble: a white pill that grows to fit its text
