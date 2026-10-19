@@ -13,8 +13,19 @@ public class TowerController : MonoBehaviour
     [Header("Movement")]
     public float moveSpeed = 3f;
     public float speedIncreasePerScore = 0.05f;
-    public float maxMoveSpeed = 7f;
+    public float maxMoveSpeed = 6f;     // elementlerin hız etkisi bu tavanın üstüne eklenir
     public float moveRange = 2.6f;
+
+    [Header("Elements")]
+    public GameObject fireEffect;
+    public GameObject iceEffect;
+    public GameObject windEffect;
+    public GameObject electricEffect;
+    public ElementBanner elementBanner;
+    [Tooltip("Kesilen parça bloğun bu oranından büyükse yerleştirme \"kötü\" sayılır (yardım eli için)")]
+    public float badCutFraction = 0.25f;
+    [Tooltip("Blok tabanın bu oranından küçüldüyse oyuncu zorlanıyor sayılır")]
+    public float smallBlockAreaFraction = 0.45f;
 
     [Header("Perfect")]
     [Tooltip("Bu mesafeden (dünya birimi) az kayma Perfect sayılır")]
@@ -30,7 +41,8 @@ public class TowerController : MonoBehaviour
 
     [HideInInspector] public bool gameStarted = false;
     public TextMeshProUGUI scoreText;
-    public int score = 0;
+    public int score = 0;     // puan (rüzgâr bonusu ile kat sayısından fazla olabilir)
+    public int floors = 0;    // yerleşmiş kat sayısı; eksen, hız, element ve arka plan buna göre
 
     private GameManager gm;
     private ScorePunchEffect scorePunch;
@@ -44,6 +56,11 @@ public class TowerController : MonoBehaviour
     private bool moveOnX = true;
     private float direction = 1f;
     private bool isGameOver = false;
+
+    private Block.BlockElementType currentElement = Block.BlockElementType.None;
+    private float currentBlockAge;
+    private GameObject currentEffect;
+    private int badPlacementsInRow;
 
     void Start()
     {
@@ -73,7 +90,9 @@ public class TowerController : MonoBehaviour
     {
         if (!gameStarted || isGameOver || currentBlock == null) return;
 
-        float speed = Mathf.Min(maxMoveSpeed, moveSpeed + score * speedIncreasePerScore);
+        currentBlockAge += Time.deltaTime;
+        float speed = Mathf.Min(maxMoveSpeed, moveSpeed + floors * speedIncreasePerScore)
+                      * ElementRules.SpeedMultiplier(currentElement, currentBlockAge);
         Vector3 pos = currentBlock.position;
         float center = AxisValue(topBlock.position);
         float offset = AxisValue(pos) - center + direction * speed * Time.deltaTime;
@@ -111,8 +130,12 @@ public class TowerController : MonoBehaviour
     private void CreateNewBlock()
     {
         // Eksen her katta değişir: X, Z, X, Z...
-        moveOnX = score % 2 == 0;
+        moveOnX = floors % 2 == 0;
         direction = Random.value < 0.5f ? -1f : 1f;
+
+        int floor = floors + 1;
+        currentElement = ElementRules.Pick(floor, IsStruggling(), out bool isIntroduction);
+        currentBlockAge = 0f;
 
         Vector3 pos = topBlock.position;
         pos.y = topSurfaceY + blockHeight * 0.5f;
@@ -124,9 +147,17 @@ public class TowerController : MonoBehaviour
         Block blockScript = go.GetComponent<Block>();
         if (blockScript != null)
         {
-            blockScript.elementType = (Block.BlockElementType)Random.Range(0, 4);
+            blockScript.elementType = currentElement;
+            blockScript.floor = floor;
             blockScript.ApplyElementColor();
         }
+
+        // Element bloğu kayarken kendi parçacıklarını saçar
+        GameObject effectPrefab = EffectFor(currentElement);
+        currentEffect = effectPrefab != null ? Instantiate(effectPrefab, go.transform, false) : null;
+
+        if (isIntroduction && elementBanner != null)
+            elementBanner.Show(currentElement);
 
         currentBlock = go.transform;
 
@@ -138,10 +169,12 @@ public class TowerController : MonoBehaviour
     {
         Transform block = currentBlock;
         currentBlock = null;
+        StopCurrentEffect();
 
         float delta = AxisValue(block.position) - AxisValue(topBlock.position);
         float topSize = AxisValue(topScale);
         float overlap = topSize - Mathf.Abs(delta);
+        int bonusPoints = 0;
 
         if (overlap <= 0f)
         {
@@ -153,7 +186,8 @@ public class TowerController : MonoBehaviour
 
         Vector3 pos = block.position;
         Vector3 scale = block.localScale;
-        bool isPerfect = Mathf.Abs(delta) < perfectTolerance;
+        float tolerance = perfectTolerance * ElementRules.PerfectToleranceMultiplier(currentElement);
+        bool isPerfect = Mathf.Abs(delta) < tolerance;
 
         if (isPerfect)
         {
@@ -161,18 +195,23 @@ public class TowerController : MonoBehaviour
             block.position = pos;
 
             combo++;
+            badPlacementsInRow = 0;
+            bonusPoints = ElementRules.PerfectBonusPoints(currentElement);
 
-            // Uzun perfect serisi ödülü: blok, taban boyutunu geçmeden biraz büyür
+            // Uzun perfect serisi ve elektrik bloğu ödülü: blok, taban boyutunu geçmeden büyür
+            float grow = ElementRules.PerfectGrowAmount(currentElement);
             if (combo >= perfectGrowStreak)
+                grow += perfectGrowStep;
+            if (grow > 0f)
             {
-                scale.x = Mathf.Min(scale.x + perfectGrowStep, fullScale.x);
-                scale.z = Mathf.Min(scale.z + perfectGrowStep, fullScale.z);
+                scale.x = Mathf.Min(scale.x + grow, fullScale.x);
+                scale.z = Mathf.Min(scale.z + grow, fullScale.z);
                 block.localScale = scale;
             }
 
             AudioManager.Instance.PlayPerfect(combo);
             Haptics.Medium();
-            PerfectPopup.Spawn(pos + Vector3.up * 0.6f, combo);
+            PerfectPopup.Spawn(pos + Vector3.up * 0.6f, combo, bonusPoints);
             CameraShake.Instance.Shake(0.03f, 0.08f);
             ComboEffectManager.Instance.PlayPerfectComboEffect(combo);
 
@@ -191,6 +230,7 @@ public class TowerController : MonoBehaviour
 
             float newCenter = AxisValue(topBlock.position) + delta * 0.5f;
             float pieceSize = Mathf.Abs(delta);
+            badPlacementsInRow = pieceSize / topSize > badCutFraction ? badPlacementsInRow + 1 : 0;
             float pieceCenter = newCenter + Mathf.Sign(delta) * (overlap + pieceSize) * 0.5f;
             SpawnPiece(block, pieceCenter, pieceSize, delta);
 
@@ -210,7 +250,8 @@ public class TowerController : MonoBehaviour
         if (isPerfect)
             StartCoroutine(PunchScale(block));
 
-        score++;
+        floors++;
+        score += 1 + bonusPoints;
         if (gm != null)
             gm.UpdateScore(score);
 
@@ -233,6 +274,7 @@ public class TowerController : MonoBehaviour
         if (pieceBlock != null && sourceBlock != null)
         {
             pieceBlock.elementType = sourceBlock.elementType;
+            pieceBlock.floor = sourceBlock.floor;
             pieceBlock.ApplyElementColor();
         }
 
@@ -267,6 +309,37 @@ public class TowerController : MonoBehaviour
         block.localScale = new Vector3(original.x * 1.06f, original.y, original.z * 1.06f);
         yield return new WaitForSeconds(0.06f);
         block.localScale = original;
+    }
+
+    // Oyuncu zorlanıyor mu: üst üste kötü kesim ya da iyice daralmış blok. O zaman yardımcı elementler sıklaşır.
+    private bool IsStruggling()
+    {
+        if (badPlacementsInRow >= 2) return true;
+        float area = topScale.x * topScale.z;
+        float fullArea = fullScale.x * fullScale.z;
+        return fullArea > 0f && area < fullArea * smallBlockAreaFraction;
+    }
+
+    private GameObject EffectFor(Block.BlockElementType element)
+    {
+        switch (element)
+        {
+            case Block.BlockElementType.Fire: return fireEffect;
+            case Block.BlockElementType.Ice: return iceEffect;
+            case Block.BlockElementType.Wind: return windEffect;
+            case Block.BlockElementType.Electric: return electricEffect;
+            default: return null;
+        }
+    }
+
+    // Blok yerleşince parçacıklar kesilir; havadakiler kendi ömrünü tamamlayıp kaybolur
+    private void StopCurrentEffect()
+    {
+        if (currentEffect == null) return;
+        foreach (ParticleSystem ps in currentEffect.GetComponentsInChildren<ParticleSystem>())
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+        Destroy(currentEffect, 2f);
+        currentEffect = null;
     }
 
     private float AxisValue(Vector3 v)
