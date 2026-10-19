@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 // Oyuncunun kalıcı verileri: coin, en yüksek skor ve istatistikler (ileride skin'ler ve görevler de buraya).
@@ -8,12 +9,17 @@ public static class PlayerData
     [Serializable]
     private class SaveData
     {
-        public int version = 1;
+        public int version = 2;
         public int coins;
         public int bestScore;
         public int bestFloor;
         public int gamesPlayed;
         public int totalPerfects;
+
+        // Mağaza
+        public List<string> ownedSkins = new List<string>();
+        public string selectedBlockSkin;
+        public string selectedSkySkin;
     }
 
     private const string SaveKey = "SaveData";
@@ -64,6 +70,25 @@ public static class PlayerData
         return true;
     }
 
+    public static string SelectedBlockSkin => Data.selectedBlockSkin;
+    public static string SelectedSkySkin => Data.selectedSkySkin;
+
+    public static bool OwnsSkin(string id) => Data.ownedSkins.Contains(id);
+
+    public static void UnlockSkin(string id)
+    {
+        if (OwnsSkin(id)) return;
+        Data.ownedSkins.Add(id);
+        Save();
+    }
+
+    public static void SelectSkin(Skin skin)
+    {
+        if (skin.type == SkinType.Block) Data.selectedBlockSkin = skin.id;
+        else Data.selectedSkySkin = skin.id;
+        Save();
+    }
+
     // Her oyunun sonunda bir kez çağrılır
     public static void RecordGame(int score, int floors, int perfects)
     {
@@ -95,8 +120,17 @@ public static class PlayerData
         {
             // İlk açılış ya da eski sürümden güncelleme: önceki en yüksek skoru taşı
             data = new SaveData { bestScore = PlayerPrefs.GetInt(LegacyHighScoreKey, 0) };
-            Save();
         }
+
+        // Ücretsiz temalar herkeste var ve hiçbir şey seçilmediyse onlar seçili (eski kayıtlar için de)
+        if (data.ownedSkins == null)
+            data.ownedSkins = new List<string>();
+        foreach (string free in new[] { SkinCatalog.DefaultBlockSkin, SkinCatalog.DefaultSkySkin })
+            if (!data.ownedSkins.Contains(free))
+                data.ownedSkins.Add(free);
+        if (string.IsNullOrEmpty(data.selectedBlockSkin)) data.selectedBlockSkin = SkinCatalog.DefaultBlockSkin;
+        if (string.IsNullOrEmpty(data.selectedSkySkin)) data.selectedSkySkin = SkinCatalog.DefaultSkySkin;
+        Save();
     }
 
     private static void Save()
