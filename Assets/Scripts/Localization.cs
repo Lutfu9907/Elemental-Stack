@@ -27,6 +27,15 @@ public static class Localization
         { "combo_amazing", new[] { "Amazing!", "Muhteşem!" } },
         { "combo_super",  new[] { "Super stack!", "Süper kule!" } },
         { "language",     new[] { "EN", "TR" } },
+        { "new_element",  new[] { "New element:", "Yeni element:" } },
+        { "element_ice",           new[] { "Ice", "Buz" } },
+        { "element_ice_desc",      new[] { "Slides slowly", "Yavaş kayar" } },
+        { "element_fire",          new[] { "Fire", "Ateş" } },
+        { "element_fire_desc",     new[] { "Fast, but perfects are easier", "Hızlı ama perfect daha kolay" } },
+        { "element_wind",          new[] { "Wind", "Rüzgâr" } },
+        { "element_wind_desc",     new[] { "Gusty speed, perfect gives +2", "Hızı değişir, perfect +2 puan" } },
+        { "element_electric",      new[] { "Electric", "Elektrik" } },
+        { "element_electric_desc", new[] { "Perfect makes the block grow", "Perfect bloğu büyütür" } },
     };
 
     public static event Action LanguageChanged;
