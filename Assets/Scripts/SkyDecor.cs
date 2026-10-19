@@ -35,6 +35,9 @@ public class SkyDecor : MonoBehaviour
         public float drift;          // yatay süzülme hızı (dünya birimi/sn)
         public bool wrap = true;     // ekrandan çıkınca öbür taraftan geri gelir
         public float spawnTime;      // eklendiği an (süzülme buradan itibaren hesaplanır)
+        public float rise;           // dikey hız (bulut geçişi gibi akan objeler için)
+        public float sway;           // yatay dalgalanma genliği (kutup ışıkları)
+        public float phase;
     }
 
     private Camera cam;
@@ -90,8 +93,9 @@ public class SkyDecor : MonoBehaviour
                 continue;
             }
 
-            float x = item.start.x * halfW + item.drift * (time - item.spawnTime);
-            float y = item.start.y * halfH - height * item.parallax;
+            float age = time - item.spawnTime;
+            float x = item.start.x * halfW + item.drift * age + item.sway * Mathf.Sin(time * 0.5f + item.phase);
+            float y = item.start.y * halfH - height * item.parallax + item.rise * age;
             if (item.wrap)
             {
                 float marginX = halfW * 0.5f;
@@ -251,24 +255,7 @@ public class SkyDecor : MonoBehaviour
             items.Add(new Item { transform = p, start = new Vector2(0.55f, 0.55f), depth = 138f, parallax = 0.06f, wrap = false });
         }
 
-        // Göz kırpan yıldızlar (parlak materyal; bloom ile ışıldar)
-        stars = CreateParticles("Stars", 142f, 180, glowMaterial);
-        var main = stars.main;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(3f, 6f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.04f, 0.13f);
-        main.startColor = new ParticleSystem.MinMaxGradient(Color.white, new Color(0.7f, 0.8f, 1f));
-        main.prewarm = true;
-        var emission = stars.emission;
-        emission.rateOverTime = 35f;
-        var twinkle = new Gradient();
-        twinkle.SetKeys(
-            new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
-            new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.2f), new GradientAlphaKey(0.4f, 0.45f),
-                    new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
-        var color = stars.colorOverLifetime;
-        color.enabled = true;
-        color.color = twinkle;
-        stars.Play();
+        CreateStars(true);
 
         // Kayan yıldızlar: zamanı gelince elle fırlatılır
         shootingStars = CreateParticles("ShootingStars", 125f, 6, glowMaterial);
@@ -304,6 +291,94 @@ public class SkyDecor : MonoBehaviour
             applyShapeToPosition = false,
         };
         shootingStars.Emit(emit, 1);
+    }
+
+    // Göz kırpan yıldızlar (parlak materyal; bloom ile ışıldar).
+    // prewarm: uzay temasında baştan dolu; uzay bölgesine ulaşınca ise yavaş yavaş belirir.
+    private void CreateStars(bool prewarm)
+    {
+        stars = CreateParticles("Stars", 142f, 180, glowMaterial);
+        var main = stars.main;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(3f, 6f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.04f, 0.13f);
+        main.startColor = new ParticleSystem.MinMaxGradient(Color.white, new Color(0.7f, 0.8f, 1f));
+        main.prewarm = prewarm;
+        var emission = stars.emission;
+        emission.rateOverTime = 35f;
+        var twinkle = new Gradient();
+        twinkle.SetKeys(
+            new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.2f), new GradientAlphaKey(0.4f, 0.45f),
+                    new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
+        var color = stars.colorOverLifetime;
+        color.enabled = true;
+        color.color = twinkle;
+        stars.Play();
+    }
+
+    // ------------------------------------------------------- altitude zones
+
+    // AltitudeTracker bir bölgeye ulaşılınca çağırır; gökyüzü o bölgeye göre değişir
+    public void OnZoneReached(int index)
+    {
+        if (root == null) return;
+        switch (AltitudeZones.All[index].key)
+        {
+            case "clouds": CloudSweep(); break;
+            case "aurora": AddAurora(); break;
+            case "space": if (stars == null) CreateStars(false); break;
+            case "moon": AddMoon(); break;
+        }
+    }
+
+    // Bulutların arasından geçiyormuş gibi: büyük bulutlar hızla aşağı akar
+    private void CloudSweep()
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            Item c = AddCloud(new System.Random(i + 7), 60f, Random.Range(4f, 6f), 0.9f, 0f, 0f, Color.white);
+            c.start = new Vector2(Random.Range(-0.9f, 0.9f), 1.5f + i * 0.25f);
+            c.rise = -Random.Range(5f, 7f);
+            c.wrap = false;
+            Destroy(c.transform.gameObject, 6f);
+        }
+    }
+
+    // Kutup ışıkları: yeşil ve mor dalgalanan ışık şeritleri
+    private void AddAurora()
+    {
+        Color[] colors =
+        {
+            new Color(0.3f, 1f, 0.65f, 0.32f),
+            new Color(0.45f, 0.5f, 1f, 0.26f),
+            new Color(0.4f, 1f, 0.85f, 0.22f),
+        };
+        for (int i = 0; i < colors.Length; i++)
+        {
+            var go = new GameObject("Aurora").transform;
+            go.SetParent(root, false);
+            SpriteRenderer sr = AddSprite(go, softGlow, decorMaterial, colors[i]);
+            sr.transform.localScale = new Vector3(16f, 2.4f, 1f);
+            items.Add(new Item
+            {
+                transform = go,
+                start = new Vector2(0f, 0.55f - i * 0.18f),
+                depth = 141f, parallax = 0.04f, wrap = false,
+                sway = 1.2f, phase = i * 1.7f, spawnTime = time,
+            });
+        }
+    }
+
+    // Ay: soluk mavi ışıltılı beyaz disk
+    private void AddMoon()
+    {
+        var moon = new GameObject("Moon").transform;
+        moon.SetParent(root, false);
+        SpriteRenderer glow = AddSprite(moon, softGlow, decorMaterial, new Color(0.8f, 0.86f, 1f, 0.5f));
+        glow.transform.localScale = Vector3.one * 7f;
+        SpriteRenderer moonDisc = AddSprite(moon, disc, decorMaterial, new Color(0.93f, 0.94f, 1f));
+        moonDisc.transform.localScale = Vector3.one * SpriteScale(disc, 2.2f);
+        items.Add(new Item { transform = moon, start = new Vector2(-0.5f, 0.6f), depth = 139f, parallax = 0.02f, wrap = false, spawnTime = time });
     }
 
     // -------------------------------------------------------------- helpers
