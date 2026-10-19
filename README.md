@@ -39,7 +39,7 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 **Feel and sound**
 - All sound effects, the intro jingle and the background music are synthesised in code, so there are no third-party audio licences
 - Short haptic feedback on Android (light, medium and heavy)
-- Music on/off button; sound effects stay on
+- Settings screen: music, sound effects, vibration, graphics quality, language and the privacy policy
 
 **Presentation**
 - Animated *LD Games* studio intro synced to its jingle (replaces the Unity splash)
@@ -50,6 +50,9 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 - Portrait only, notch and rounded-corner safe areas, 60 FPS target, screen stays awake while playing
 - Camera widens on tall phones so the sliding block never leaves the screen
 - Taps on buttons never drop a block
+- First-game guide with a pulsing tap ring and slower first blocks
+- Pause button, and the game pauses itself when the phone goes to the background
+- Low graphics mode (no bloom or shadows) picked automatically on low-end phones
 
 ## Coming next
 
