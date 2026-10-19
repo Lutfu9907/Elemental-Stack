@@ -1,6 +1,6 @@
 # Tower Stack
 
-A 2D tower-stacking game made with Unity. Tap to drop the moving block; the part that hangs over the tower is cut off and falls. Land it almost exactly on top for a **Perfect** and build combos.
+A 3D tower-stacking game made with Unity. Tap to drop the moving block; the part that hangs over the tower is cut off and falls. Land it almost exactly on top for a **Perfect** and build combos.
 
 ## Features
 - Block slicing with falling off-cut pieces (Rigidbody2D physics)
