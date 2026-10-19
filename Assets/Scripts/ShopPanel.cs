@@ -72,6 +72,7 @@ public class ShopPanel : MonoBehaviour
                 return;
             }
             PlayerData.UnlockSkin(skin.id);
+            GameAnalytics.Event("skin_bought", ("id", skin.id), ("price", skin.price));
             if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
         }
         else if (AudioManager.Instance != null)
@@ -105,6 +106,7 @@ public class ShopPanel : MonoBehaviour
         if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
         StoreService.BuyRemoveAds(ok =>
         {
+            GameAnalytics.Event("remove_ads", ("bought", ok));
             if (ok)
             {
                 if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();

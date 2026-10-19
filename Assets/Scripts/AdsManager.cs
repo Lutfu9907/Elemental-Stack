@@ -45,6 +45,9 @@ public class AdsManager : MonoBehaviour
     }
 
     public bool RewardedReady => provider != null && provider.RewardedReady;
+    public bool PrivacyOptionsRequired => provider != null && provider.PrivacyOptionsRequired;
+
+    public void ShowPrivacyOptions() => provider?.ShowPrivacyOptions();
 
     public void ShowRewarded(Action<bool> done)
     {
@@ -73,6 +76,7 @@ public class AdsManager : MonoBehaviour
 
         gamesSinceInterstitial = 0;
         lastInterstitialTime = Time.realtimeSinceStartup;
+        GameAnalytics.Event("interstitial", ("games", PlayerData.GamesPlayed));
         provider.ShowInterstitial(then);
     }
 }

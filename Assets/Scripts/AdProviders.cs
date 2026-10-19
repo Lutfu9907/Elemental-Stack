@@ -15,6 +15,8 @@ public interface IAdProvider
     bool InterstitialReady { get; }
     void ShowRewarded(Action<bool> done);   // true: oyuncu ödülü hak etti
     void ShowInterstitial(Action done);
+    bool PrivacyOptionsRequired { get; }    // Avrupa'da oyuncu reklam iznini Ayarlar'dan değiştirebilmeli
+    void ShowPrivacyOptions();
 }
 
 public class NoAdProvider : IAdProvider
@@ -24,6 +26,8 @@ public class NoAdProvider : IAdProvider
     public bool InterstitialReady => false;
     public void ShowRewarded(Action<bool> done) => done?.Invoke(false);
     public void ShowInterstitial(Action done) => done?.Invoke();
+    public bool PrivacyOptionsRequired => false;
+    public void ShowPrivacyOptions() { }
 }
 
 // Editörde reklam akışını denemek için: ekranı kaplayan "Test reklamı" kartı birkaç saniye görünür
@@ -34,6 +38,8 @@ public class SimulatedAdProvider : IAdProvider
     public void Initialize(MonoBehaviour host) { this.host = host; }
     public bool RewardedReady => true;
     public bool InterstitialReady => true;
+    public bool PrivacyOptionsRequired => false;
+    public void ShowPrivacyOptions() { }
 
     public void ShowRewarded(Action<bool> done) =>
         host.StartCoroutine(ShowFake(Localization.Get("test_ad") + "\n<size=60%>(rewarded)</size>", 2f, () => done?.Invoke(true)));
@@ -74,12 +80,20 @@ public class SimulatedAdProvider : IAdProvider
 }
 
 #if GOOGLE_MOBILE_ADS
-// Google AdMob. Kurulum: docs/RELEASE.md → "Reklamlar". Önce Google'ın test kimlikleri kullanılır;
-// yayından önce AdMob panelindeki gerçek reklam birimi kimlikleriyle değiştirilmeli.
+// Google AdMob. Kurulum: docs/RELEASE.md → "Reklamlar".
+// Gerçek reklam birimi kimlikleri boşken ya da geliştirme sürümünde Google'ın test reklamları gösterilir.
 public class AdMobProvider : IAdProvider
 {
-    private const string RewardedId = "ca-app-pub-3940256099942544/5224354917";      // Google test kimliği
-    private const string InterstitialId = "ca-app-pub-3940256099942544/1033173712";  // Google test kimliği
+    // AdMob panelinden alınan gerçek kimlikler (ca-app-pub-.../...)
+    private const string LiveRewardedId = "";
+    private const string LiveInterstitialId = "";
+
+    private const string TestRewardedId = "ca-app-pub-3940256099942544/5224354917";
+    private const string TestInterstitialId = "ca-app-pub-3940256099942544/1033173712";
+
+    private static bool UseTestAds => Debug.isDebugBuild || LiveRewardedId == "" || LiveInterstitialId == "";
+    private static string RewardedId => UseTestAds ? TestRewardedId : LiveRewardedId;
+    private static string InterstitialId => UseTestAds ? TestInterstitialId : LiveInterstitialId;
 
     private GoogleMobileAds.Api.RewardedAd rewarded;
     private GoogleMobileAds.Api.InterstitialAd interstitial;
@@ -106,6 +120,13 @@ public class AdMobProvider : IAdProvider
 
     public bool RewardedReady => rewarded != null && rewarded.CanShowAd();
     public bool InterstitialReady => interstitial != null && interstitial.CanShowAd();
+
+    public bool PrivacyOptionsRequired =>
+        GoogleMobileAds.Ump.Api.ConsentInformation.PrivacyOptionsRequirementStatus
+        == GoogleMobileAds.Ump.Api.PrivacyOptionsRequirementStatus.Required;
+
+    public void ShowPrivacyOptions() =>
+        GoogleMobileAds.Ump.Api.ConsentForm.ShowPrivacyOptionsForm(error => { });
 
     public void ShowRewarded(Action<bool> done)
     {

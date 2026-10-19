@@ -111,6 +111,7 @@ public class GameManager : MonoBehaviour
 
         if (tower != null)
             tower.StartTower();
+        GameAnalytics.Event("game_start", ("games", PlayerData.GamesPlayed));
 
         RefreshTexts();
     }
@@ -137,6 +138,7 @@ public class GameManager : MonoBehaviour
         PlayerData.AddCoins(coinsEarned);
         if (missions != null)
             missions.OnGameOver(coinsEarned);
+        GameAnalytics.Event("game_over", ("floors", floors), ("score", score), ("coins", coinsEarned), ("continued", continueUsed));
 
         RefreshTexts();
         if (newBestBadge != null)
@@ -250,6 +252,7 @@ public class GameManager : MonoBehaviour
     {
         AdsManager.Instance.ShowRewarded(earned =>
         {
+            GameAnalytics.Event("continue_ad", ("watched", earned));
             if (earned) Revive();
             else DeclineContinue();
         });
@@ -260,6 +263,7 @@ public class GameManager : MonoBehaviour
         if (PlayerData.SpendCoins(continueCost))
         {
             if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
+            GameAnalytics.Event("continue_coins", ("cost", continueCost));
             Revive();
         }
     }
@@ -288,6 +292,7 @@ public class GameManager : MonoBehaviour
         if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
         AdsManager.Instance.ShowRewarded(earned =>
         {
+            GameAnalytics.Event("double_coins", ("watched", earned));
             if (!earned) return;
             PlayerData.AddCoins(lastCoinsEarned);
             StartCoroutine(CountCoins(lastCoinsEarned, lastCoinsEarned * 2, 0f));

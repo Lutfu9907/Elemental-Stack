@@ -1579,10 +1579,21 @@ public static class TowerStackSceneBuilder
         panel.restoreText.fontSizeMax = 40;
 
         TextMeshProUGUI version = CreateText("Version", card.transform, "v1.0", 32, MutedNavy, TextAlignmentOptions.Center);
-        Place(version.rectTransform, new Vector2(0f, -490f), new Vector2(600f, 50f));
+        Place(version.rectTransform, new Vector2(0f, -475f), new Vector2(600f, 40f));
         panel.versionText = version;
 
-        Button close = CreateCardButton("CloseButton", card.transform, "Close", "close", Yellow, YellowText, new Vector2(0f, -590f));
+        // Ad consent choices (shown only where the law asks for it); the version moves aside to make room
+        TextMeshProUGUI adPrivacy = CreateText("AdPrivacyButton", card.transform, "Ad privacy choices", 34, MutedNavy, TextAlignmentOptions.Center);
+        adPrivacy.gameObject.AddComponent<LocalizedText>().key = "ad_privacy";
+        adPrivacy.fontStyle = FontStyles.Underline;
+        adPrivacy.raycastTarget = true;
+        Place(adPrivacy.rectTransform, new Vector2(0f, -525f), new Vector2(600f, 50f));
+        Button adPrivacyButton = adPrivacy.gameObject.AddComponent<Button>();
+        adPrivacyButton.targetGraphic = adPrivacy;
+        panel.adPrivacyButton = adPrivacy.gameObject;
+        UnityEventTools.AddPersistentListener(adPrivacyButton.onClick, new UnityAction(panel.OpenAdPrivacy));
+
+        Button close = CreateCardButton("CloseButton", card.transform, "Close", "close", Yellow, YellowText, new Vector2(0f, -615f));
 
         UnityEventTools.AddPersistentListener(music.onClick, new UnityAction(panel.ToggleMusic));
         UnityEventTools.AddPersistentListener(sfx.onClick, new UnityAction(panel.ToggleSfx));
@@ -2139,7 +2150,8 @@ public static class TowerStackSceneBuilder
 
     private static void ApplyMobilePlayerSettings()
     {
-        PlayerSettings.productName = "Elemental Stack";
+        // Package name, version, IL2CPP/ARM64, app bundle and the app icon
+        ReleaseTools.ApplyAndroidSettings();
 
         // Portrait only: the tower is built for a tall phone screen.
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
