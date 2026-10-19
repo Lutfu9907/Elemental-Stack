@@ -58,6 +58,7 @@ public static class TowerStackSceneBuilder
     private const string OutlineMaterialPath = FontFolder + "/Baloo2 SDF Outline.mat";
     private const string RoundedSpritePath = "Assets/UI/Rounded.png";
     private const string MusicIconPath = "Assets/UI/MusicNote.png";
+    private const string CoinIconPath = "Assets/UI/Coin.png";
     private const float RoundedSpriteRadius = 64f;
 
     private static readonly Color Navy = new Color(0.137f, 0.224f, 0.357f);
@@ -65,6 +66,7 @@ public static class TowerStackSceneBuilder
     private static readonly Color Yellow = new Color(1f, 0.824f, 0.302f);
     private static readonly Color YellowText = new Color(0.353f, 0.263f, 0f);
     private static readonly Color Coral = new Color(0.91f, 0.34f, 0.29f);
+    private static readonly Color CoinText = new Color(0.78f, 0.5f, 0.05f);
 
     private static TMP_FontAsset uiFont;
     private static Material outlineMaterial;
@@ -193,6 +195,13 @@ public static class TowerStackSceneBuilder
         AnchorTop(bestPill.rectTransform, new Vector2(0f, -70f), new Vector2(520f, 92f));   // wide enough for "En yüksek skor: 128"
         TextMeshProUGUI startBestText = CreatePillLabel(bestPill, "Best: 0", 44, Navy, null);
 
+        // Total coins, under the best score
+        Image coinPill = CreateRounded("CoinPill", startContent, Color.white, 40f);
+        coinPill.raycastTarget = false;
+        AnchorTop(coinPill.rectTransform, new Vector2(0f, -178f), new Vector2(300f, 80f));
+        RectTransform startCoinRow = CreateCoinRow("Coins", coinPill.transform, GetOrCreateCoinIcon(), "0", 42, Navy, out TextMeshProUGUI startCoinsText);
+        Stretch(startCoinRow);
+
         // Language switch (EN / TR); its own button, so tapping it never starts the game
         Image languagePill = CreateRounded("LanguageButton", startContent, Color.white, 46f);
         RectTransform languageRt = languagePill.rectTransform;
@@ -244,28 +253,33 @@ public static class TowerStackSceneBuilder
         CanvasGroup gameOverGroup = gameOverBg.gameObject.AddComponent<CanvasGroup>();
         RectTransform gameOverContent = CreateSafeArea(gameOverBg.transform);
         Image card = CreateRounded("Card", gameOverContent, Color.white, 64f);
-        Place(card.rectTransform, new Vector2(0f, 40f), new Vector2(840f, 1000f));
+        Place(card.rectTransform, new Vector2(0f, 30f), new Vector2(840f, 1080f));
 
         TextMeshProUGUI gameOverText = CreateText("GameOverText", card.transform, "Game over", 90, Navy, TextAlignmentOptions.Center);
         gameOverText.gameObject.AddComponent<LocalizedText>().key = "game_over";
-        Place(gameOverText.rectTransform, new Vector2(0f, 380f), new Vector2(760f, 120f));
+        Place(gameOverText.rectTransform, new Vector2(0f, 405f), new Vector2(760f, 120f));
         TextMeshProUGUI scoreLabel = CreateText("ScoreLabel", card.transform, "Score", 44, MutedNavy, TextAlignmentOptions.Center);
         scoreLabel.gameObject.AddComponent<LocalizedText>().key = "score_label";
-        Place(scoreLabel.rectTransform, new Vector2(0f, 245f), new Vector2(760f, 70f));
+        Place(scoreLabel.rectTransform, new Vector2(0f, 270f), new Vector2(760f, 70f));
         TextMeshProUGUI finalScoreText = CreateText("FinalScore", card.transform, "0", 200, Navy, TextAlignmentOptions.Center);
-        Place(finalScoreText.rectTransform, new Vector2(0f, 100f), new Vector2(760f, 230f));
+        Place(finalScoreText.rectTransform, new Vector2(0f, 125f), new Vector2(760f, 230f));
 
         Image newBestBadge = CreateRounded("NewBestBadge", card.transform, Coral, 40f);
         newBestBadge.raycastTarget = false;
-        Place(newBestBadge.rectTransform, new Vector2(0f, -60f), new Vector2(380f, 80f));
+        Place(newBestBadge.rectTransform, new Vector2(0f, -35f), new Vector2(380f, 80f));
         CreatePillLabel(newBestBadge, "New best!", 40, Color.white, "new_best");
         newBestBadge.gameObject.SetActive(false);
 
         TextMeshProUGUI finalBestText = CreateText("FinalBest", card.transform, "Best: 0", 48, MutedNavy, TextAlignmentOptions.Center);
-        Place(finalBestText.rectTransform, new Vector2(0f, -165f), new Vector2(760f, 70f));
+        Place(finalBestText.rectTransform, new Vector2(0f, -135f), new Vector2(760f, 70f));
+
+        // "+33" with a coin, counted up from zero when the card appears
+        Sprite coinIcon = GetOrCreateCoinIcon();
+        RectTransform coinsRow = CreateCoinRow("CoinsEarned", card.transform, coinIcon, "+0", 64, CoinText, out TextMeshProUGUI coinsEarnedText);
+        Place(coinsRow, new Vector2(0f, -240f), new Vector2(600f, 90f));
 
         Image restartPill = CreateRounded("RestartButton", card.transform, Yellow, 75f);
-        Place(restartPill.rectTransform, new Vector2(0f, -350f), new Vector2(620f, 150f));
+        Place(restartPill.rectTransform, new Vector2(0f, -395f), new Vector2(620f, 150f));
         Button restartButton = restartPill.gameObject.AddComponent<Button>();
         restartButton.targetGraphic = restartPill;
         CreatePillLabel(restartPill, "Play again", 60, YellowText, "play_again");
@@ -302,6 +316,7 @@ public static class TowerStackSceneBuilder
         audio.perfectSound = sounds.perfect;
         audio.gameOverSound = sounds.gameOver;
         audio.buttonClickSound = sounds.button;
+        audio.coinSound = sounds.coin;
         audio.introJingle = sounds.introJingle;
         audio.musicLoop = sounds.music;
 
@@ -321,6 +336,8 @@ public static class TowerStackSceneBuilder
         gm.finalScoreText = finalScoreText;
         gm.finalBestText = finalBestText;
         gm.newBestBadge = newBestBadge.gameObject;
+        gm.coinsEarnedText = coinsEarnedText;
+        gm.startCoinsText = startCoinsText;
         gm.fade = fade;
         gm.tower = tower;
 
@@ -791,6 +808,89 @@ public static class TowerStackSceneBuilder
     }
 
     // White eighth-note icon (head, stem and flag), drawn with 4x4 supersampling for smooth edges
+    // A coin icon followed by a number, centred as a group whatever the number's width
+    private static RectTransform CreateCoinRow(string name, Transform parent, Sprite icon, string text, float size, Color color, out TextMeshProUGUI label)
+    {
+        RectTransform row = CreateUI(name, parent);
+        var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.spacing = size * 0.25f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        Image coin = CreateImage("Icon", row, Color.white);
+        coin.sprite = icon;
+        coin.preserveAspect = true;
+        coin.raycastTarget = false;
+        var iconSize = coin.gameObject.AddComponent<LayoutElement>();
+        iconSize.preferredWidth = size * 1.1f;
+        iconSize.preferredHeight = size * 1.1f;
+
+        label = CreateText("Amount", row, text, size, color, TextAlignmentOptions.Left);
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        return row;
+    }
+
+    // Gold coin: darker rim, lighter face and an embossed slot in the middle (full colour, not tinted)
+    private static Sprite GetOrCreateCoinIcon()
+    {
+        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(CoinIconPath);
+        if (existing != null)
+            return existing;
+
+        const int size = 128;
+        const int samples = 4;
+        Color rim = new Color(0.86f, 0.55f, 0.08f);
+        Color face = new Color(1f, 0.78f, 0.2f);
+        Color shine = new Color(1f, 0.9f, 0.5f);
+        Vector2 c = new Vector2(64f, 64f);
+
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        var pixels = new Color32[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                Color sum = Color.clear;
+                int hits = 0;
+                for (int sy = 0; sy < samples; sy++)
+                {
+                    for (int sx = 0; sx < samples; sx++)
+                    {
+                        Vector2 p = new Vector2(x + (sx + 0.5f) / samples, y + (sy + 0.5f) / samples);
+                        float d = Vector2.Distance(p, c);
+                        if (d > 60f) continue;
+                        Color col = d > 49f ? rim : face;
+                        bool slot = Mathf.Abs(p.x - 64f) <= 7f && Mathf.Abs(p.y - 64f) <= 24f;
+                        if (slot) col = rim;
+                        else if (d <= 49f && p.y - p.x > 30f && d > 36f) col = shine;   // highlight on the upper left
+                        sum += col;
+                        hits++;
+                    }
+                }
+                // Average only the covered samples so the edge keeps its colour and just fades out
+                Color pixel = hits > 0 ? sum / hits : Color.clear;
+                pixel.a = hits / (float)(samples * samples);
+                pixels[y * size + x] = pixel;
+            }
+        }
+        texture.SetPixels32(pixels);
+        Directory.CreateDirectory(Path.GetDirectoryName(CoinIconPath));
+        File.WriteAllBytes(CoinIconPath, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(CoinIconPath);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(CoinIconPath);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = false;
+        importer.alphaIsTransparency = true;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(CoinIconPath);
+    }
+
     private static Sprite GetOrCreateMusicIcon()
     {
         Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(MusicIconPath);
