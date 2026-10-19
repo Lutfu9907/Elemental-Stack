@@ -45,6 +45,7 @@ public class TowerController : MonoBehaviour
     public float perfectGrowStep = 0.15f;
     public Material rippleMaterial;
     private int combo = 0;
+    public int Combo => combo;   // şu anki üst üste perfect sayısı
 
     [Header("Falling Pieces")]
     public float pieceLifetime = 3f;

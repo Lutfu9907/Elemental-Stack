@@ -20,7 +20,22 @@ public static class PlayerData
         public List<string> ownedSkins = new List<string>();
         public string selectedBlockSkin;
         public string selectedSkySkin;
+
+        // Günlük görevler
+        public string missionDay;
+        public List<string> missionIds = new List<string>();
+        public List<int> missionProgress = new List<int>();
+        public List<bool> missionDone = new List<bool>();
+        public bool missionBonusClaimed;
+
+        // Giriş serisi
+        public string lastLoginDay;
+        public int loginStreak;
+        public bool dailyRewardClaimed;
     }
+
+    // Seri günlerine göre günlük ödül (7. günden sonra döngü başa sarar)
+    private static readonly int[] DailyRewards = { 20, 30, 40, 50, 60, 80, 100 };
 
     private const string SaveKey = "SaveData";
     private const string LegacyHighScoreKey = "HighScore";   // coin sisteminden önceki en yüksek skor
@@ -89,6 +104,86 @@ public static class PlayerData
         Save();
     }
 
+    // ----------------------------------------------------------- günlük
+
+    private static string DayKey(DateTime day) => day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    // Gün değiştiyse giriş serisini ilerletir ve yeni günün görevlerini seçer.
+    // Her sahne açılışında (GameManager) çağrılır.
+    public static void RefreshDay()
+    {
+        SaveData d = Data;
+        DateTime now = DateTime.Now;
+        string today = DayKey(now);
+        bool changed = false;
+
+        if (d.lastLoginDay != today)
+        {
+            d.loginStreak = d.lastLoginDay == DayKey(now.AddDays(-1)) ? d.loginStreak + 1 : 1;
+            d.lastLoginDay = today;
+            d.dailyRewardClaimed = false;
+            changed = true;
+        }
+
+        if (d.missionDay != today || d.missionIds == null || d.missionIds.Count == 0)
+        {
+            d.missionDay = today;
+            d.missionIds = new List<string>();
+            d.missionProgress = new List<int>();
+            d.missionDone = new List<bool>();
+            foreach (Mission m in MissionCatalog.PickForDay(now.Date, d.bestFloor))
+            {
+                d.missionIds.Add(m.Id);
+                d.missionProgress.Add(0);
+                d.missionDone.Add(false);
+            }
+            d.missionBonusClaimed = false;
+            changed = true;
+        }
+
+        if (changed)
+            Save();
+    }
+
+    public static int MissionCount => Data.missionIds.Count;
+    public static Mission GetMission(int i) => Mission.FromId(Data.missionIds[i]);
+    public static int GetMissionProgress(int i) => Data.missionProgress[i];
+    public static bool IsMissionDone(int i) => Data.missionDone[i];
+    public static bool MissionBonusClaimed => Data.missionBonusClaimed;
+
+    // Görev ilerlemesi sık değişir; diske yazma oyun sonunda ya da bir görev bitince olur
+    public static void SetMissionProgress(int i, int value)
+    {
+        Data.missionProgress[i] = value;
+        SaveQuiet();
+    }
+
+    public static void CompleteMission(int i)
+    {
+        if (Data.missionDone[i]) return;
+        Data.missionDone[i] = true;
+        AddCoins(GetMission(i).reward);
+    }
+
+    public static void ClaimMissionBonus()
+    {
+        if (Data.missionBonusClaimed) return;
+        Data.missionBonusClaimed = true;
+        AddCoins(MissionCatalog.AllDoneBonus);
+    }
+
+    public static int LoginStreak => Mathf.Max(1, Data.loginStreak);
+    public static bool CanClaimDailyReward => !Data.dailyRewardClaimed;
+    public static int DailyRewardAmount => DailyRewards[(LoginStreak - 1) % DailyRewards.Length];
+    public static int DailyRewardDayIndex => (LoginStreak - 1) % DailyRewards.Length;   // 0..6
+
+    public static void ClaimDailyReward()
+    {
+        if (Data.dailyRewardClaimed) return;
+        Data.dailyRewardClaimed = true;
+        AddCoins(DailyRewardAmount);
+    }
+
     // Sadece test için: tüm kaydı (coin, skor, temalar) siler
     public static void ResetForTesting()
     {
@@ -142,6 +237,12 @@ public static class PlayerData
         if (string.IsNullOrEmpty(data.selectedBlockSkin)) data.selectedBlockSkin = SkinCatalog.DefaultBlockSkin;
         if (string.IsNullOrEmpty(data.selectedSkySkin)) data.selectedSkySkin = SkinCatalog.DefaultSkySkin;
         Save();
+    }
+
+    // Kaydı hafızada günceller ama diske hemen yazmaz (Unity çıkışta ve bir sonraki Save'de yazar)
+    private static void SaveQuiet()
+    {
+        PlayerPrefs.SetString(SaveKey, JsonUtility.ToJson(data));
     }
 
     private static void Save()
