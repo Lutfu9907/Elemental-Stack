@@ -335,6 +335,7 @@ public static class TowerStackSceneBuilder
         DailyRewardPanel dailyReward = CreateDailyRewardPanel(canvas.transform);
         GameObject pausePanel = CreatePausePanel(canvas.transform, out Button resumeButton, out Button pauseSettingsButton, out Button homeButton);
         SettingsPanel settings = CreateSettingsPanel(canvas.transform);
+        ContinuePanel continuePanel = CreateContinuePanel(canvas.transform);
 
         // Game over screen: a white card over a navy dim
         Image gameOverBg = CreateImage("GameOverPanel", canvas.transform, new Color(Navy.r, Navy.g, Navy.b, 0.55f));
@@ -366,6 +367,14 @@ public static class TowerStackSceneBuilder
         Sprite coinIcon = GetOrCreateCoinIcon();
         RectTransform coinsRow = CreateCoinRow("CoinsEarned", card.transform, coinIcon, "+0", 64, CoinText, out TextMeshProUGUI coinsEarnedText);
         Place(coinsRow, new Vector2(0f, -240f), new Vector2(600f, 90f));
+
+        // "x2" beside the coins: watch an ad to get this game's coins again
+        Image doublePill = CreateRounded("DoubleCoinsButton", card.transform, Coral, 40f);
+        Place(doublePill.rectTransform, new Vector2(270f, -240f), new Vector2(150f, 80f));
+        Button doubleButton = doublePill.gameObject.AddComponent<Button>();
+        doubleButton.targetGraphic = doublePill;
+        CreatePillLabel(doublePill, "x2", 46, Color.white, "double_coins");
+        doublePill.gameObject.SetActive(false);
 
         Image restartPill = CreateRounded("RestartButton", card.transform, Yellow, 75f);
         Place(restartPill.rectTransform, new Vector2(-85f, -395f), new Vector2(520f, 150f));
@@ -444,6 +453,8 @@ public static class TowerStackSceneBuilder
         gm.dailyReward = dailyReward;
         gm.missionsButtonText = missionsButtonText;
         gm.pausePanel = pausePanel;
+        gm.continuePanel = continuePanel;
+        gm.doubleCoinsButton = doublePill.gameObject;
 
         // Graphics quality (bloom and shadows off on low-end phones)
         GraphicsQualityApplier quality = new GameObject("GraphicsQuality").AddComponent<GraphicsQualityApplier>();
@@ -467,6 +478,7 @@ public static class TowerStackSceneBuilder
         UnityEventTools.AddPersistentListener(resumeButton.onClick, new UnityAction(gm.ResumeGame));
         UnityEventTools.AddPersistentListener(pauseSettingsButton.onClick, new UnityAction(settings.Open));
         UnityEventTools.AddPersistentListener(homeButton.onClick, new UnityAction(gm.RestartGame));
+        UnityEventTools.AddPersistentListener(doubleButton.onClick, new UnityAction(gm.DoubleCoins));
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -1561,11 +1573,27 @@ public static class TowerStackSceneBuilder
         Button privacy = CreateCardButton("PrivacyButton", card.transform, "Privacy policy", "privacy_policy", ItemColor, Navy, new Vector2(0f, y));
         privacy.GetComponent<RectTransform>().sizeDelta = new Vector2(760f, 110f);
 
+        Button restore = CreateCardButton("RestoreButton", card.transform, "Restore purchases", null, ItemColor, Navy, new Vector2(0f, -400f));
+        restore.GetComponent<RectTransform>().sizeDelta = new Vector2(760f, 90f);
+        panel.restoreText = restore.GetComponentInChildren<TextMeshProUGUI>();
+        panel.restoreText.fontSizeMax = 40;
+
         TextMeshProUGUI version = CreateText("Version", card.transform, "v1.0", 32, MutedNavy, TextAlignmentOptions.Center);
-        Place(version.rectTransform, new Vector2(0f, -470f), new Vector2(600f, 50f));
+        Place(version.rectTransform, new Vector2(0f, -475f), new Vector2(600f, 40f));
         panel.versionText = version;
 
-        Button close = CreateCardButton("CloseButton", card.transform, "Close", "close", Yellow, YellowText, new Vector2(0f, -590f));
+        // Ad consent choices (shown only where the law asks for it); the version moves aside to make room
+        TextMeshProUGUI adPrivacy = CreateText("AdPrivacyButton", card.transform, "Ad privacy choices", 34, MutedNavy, TextAlignmentOptions.Center);
+        adPrivacy.gameObject.AddComponent<LocalizedText>().key = "ad_privacy";
+        adPrivacy.fontStyle = FontStyles.Underline;
+        adPrivacy.raycastTarget = true;
+        Place(adPrivacy.rectTransform, new Vector2(0f, -525f), new Vector2(600f, 50f));
+        Button adPrivacyButton = adPrivacy.gameObject.AddComponent<Button>();
+        adPrivacyButton.targetGraphic = adPrivacy;
+        panel.adPrivacyButton = adPrivacy.gameObject;
+        UnityEventTools.AddPersistentListener(adPrivacyButton.onClick, new UnityAction(panel.OpenAdPrivacy));
+
+        Button close = CreateCardButton("CloseButton", card.transform, "Close", "close", Yellow, YellowText, new Vector2(0f, -615f));
 
         UnityEventTools.AddPersistentListener(music.onClick, new UnityAction(panel.ToggleMusic));
         UnityEventTools.AddPersistentListener(sfx.onClick, new UnityAction(panel.ToggleSfx));
@@ -1573,7 +1601,56 @@ public static class TowerStackSceneBuilder
         UnityEventTools.AddPersistentListener(quality.onClick, new UnityAction(panel.ToggleQuality));
         UnityEventTools.AddPersistentListener(language.onClick, new UnityAction(panel.ToggleLanguage));
         UnityEventTools.AddPersistentListener(privacy.onClick, new UnityAction(panel.OpenPrivacy));
+        UnityEventTools.AddPersistentListener(restore.onClick, new UnityAction(panel.RestorePurchases));
         UnityEventTools.AddPersistentListener(close.onClick, new UnityAction(panel.Close));
+
+        background.gameObject.SetActive(false);
+        return panel;
+    }
+
+    // "Keep going?" card after a miss: watch an ad or pay coins to continue, with a 5 second countdown
+    private static ContinuePanel CreateContinuePanel(Transform canvas)
+    {
+        Image background = CreateImage("ContinuePanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(760f, 900f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Keep going?", 72, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "continue_title";
+        Place(title.rectTransform, new Vector2(0f, 330f), new Vector2(700f, 110f));
+
+        Image ring = CreateRounded("Countdown", card.transform, ItemColor, 80f);
+        ring.raycastTarget = false;
+        Place(ring.rectTransform, new Vector2(0f, 170f), new Vector2(160f, 160f));
+        TextMeshProUGUI countdown = CreatePillLabel(ring, "5", 96, Coral, null);
+
+        Button watchAd = CreateCardButton("WatchAdButton", card.transform, "Watch ad", "continue_ad", Yellow, YellowText, new Vector2(0f, -10f));
+        watchAd.GetComponent<RectTransform>().sizeDelta = new Vector2(560f, 130f);
+
+        Image coinsPill = CreateRounded("CoinsButton", card.transform, ItemColor, 60f);
+        Place(coinsPill.rectTransform, new Vector2(0f, -170f), new Vector2(560f, 120f));
+        Button coinsButton = coinsPill.gameObject.AddComponent<Button>();
+        coinsButton.targetGraphic = coinsPill;
+        RectTransform costRow = CreateCoinRow("Cost", coinsPill.transform, GetOrCreateCoinIcon(), "100", 52, Navy, out TextMeshProUGUI costText);
+        Stretch(costRow);
+
+        TextMeshProUGUI no = CreateText("NoThanks", card.transform, "No thanks", 44, MutedNavy, TextAlignmentOptions.Center);
+        no.gameObject.AddComponent<LocalizedText>().key = "continue_no";
+        Place(no.rectTransform, new Vector2(0f, -330f), new Vector2(500f, 90f));
+        no.raycastTarget = true;
+        Button noButton = no.gameObject.AddComponent<Button>();
+        noButton.targetGraphic = no;
+
+        ContinuePanel panel = background.gameObject.AddComponent<ContinuePanel>();
+        panel.watchAdButton = watchAd.gameObject;
+        panel.coinsButton = coinsPill.gameObject;
+        panel.coinsCostText = costText;
+        panel.countdownText = countdown;
+        UnityEventTools.AddPersistentListener(watchAd.onClick, new UnityAction(panel.WatchAd));
+        UnityEventTools.AddPersistentListener(coinsButton.onClick, new UnityAction(panel.UseCoins));
+        UnityEventTools.AddPersistentListener(noButton.onClick, new UnityAction(panel.Decline));
 
         background.gameObject.SetActive(false);
         return panel;
@@ -1716,10 +1793,16 @@ public static class TowerStackSceneBuilder
         Place(skyGrid, new Vector2(0f, -285f), new Vector2(800f, 260f));
 
         TextMeshProUGUI message = CreateText("Message", card.transform, "Not enough coins", 44, Coral, TextAlignmentOptions.Center);
-        Place(message.rectTransform, new Vector2(0f, -460f), new Vector2(800f, 60f));
+        Place(message.rectTransform, new Vector2(0f, -440f), new Vector2(800f, 60f));
+
+        // "Remove ads  $1.99" (hidden when the store is not ready or it is already bought)
+        Button removeAds = CreateCardButton("RemoveAdsButton", card.transform, "Remove ads", null, Navy, Color.white, new Vector2(0f, -545f));
+        removeAds.GetComponent<RectTransform>().sizeDelta = new Vector2(600f, 100f);
+        TextMeshProUGUI removeAdsText = removeAds.GetComponentInChildren<TextMeshProUGUI>();
+        removeAdsText.fontSizeMax = 44;
 
         Image closePill = CreateRounded("CloseButton", card.transform, Yellow, 60f);
-        Place(closePill.rectTransform, new Vector2(0f, -640f), new Vector2(420f, 120f));
+        Place(closePill.rectTransform, new Vector2(0f, -670f), new Vector2(420f, 110f));
         Button closeButton = closePill.gameObject.AddComponent<Button>();
         closeButton.targetGraphic = closePill;
         CreatePillLabel(closePill, "Close", 54, YellowText, "close");
@@ -1732,6 +1815,9 @@ public static class TowerStackSceneBuilder
         shop.itemTemplate = template;
         shop.coinsText = coinsText;
         shop.messageText = message;
+        shop.removeAdsButton = removeAds.gameObject;
+        shop.removeAdsText = removeAdsText;
+        UnityEventTools.AddPersistentListener(removeAds.onClick, new UnityAction(shop.BuyRemoveAds));
         UnityEventTools.AddPersistentListener(closeButton.onClick, new UnityAction(shop.Close));
 
         background.gameObject.SetActive(false);
@@ -2064,7 +2150,8 @@ public static class TowerStackSceneBuilder
 
     private static void ApplyMobilePlayerSettings()
     {
-        PlayerSettings.productName = "Elemental Stack";
+        // Package name, version, IL2CPP/ARM64, app bundle and the app icon
+        ReleaseTools.ApplyAndroidSettings();
 
         // Portrait only: the tower is built for a tall phone screen.
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;

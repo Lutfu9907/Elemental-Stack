@@ -13,6 +13,8 @@ public class ShopPanel : MonoBehaviour
     public ShopItemView itemTemplate;
     public TextMeshProUGUI coinsText;
     public TextMeshProUGUI messageText;
+    public GameObject removeAdsButton;
+    public TextMeshProUGUI removeAdsText;
 
     private readonly List<ShopItemView> items = new List<ShopItemView>();
     private Coroutine messageRoutine;
@@ -70,6 +72,7 @@ public class ShopPanel : MonoBehaviour
                 return;
             }
             PlayerData.UnlockSkin(skin.id);
+            GameAnalytics.Event("skin_bought", ("id", skin.id), ("price", skin.price));
             if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
         }
         else if (AudioManager.Instance != null)
@@ -87,6 +90,30 @@ public class ShopPanel : MonoBehaviour
         coinsText.text = PlayerData.Coins.ToString("N0");
         foreach (ShopItemView item in items)
             item.Refresh();
+
+        // "Reklamları kaldır" sadece mağaza hazırsa ve henüz alınmadıysa görünür
+        if (removeAdsButton != null)
+        {
+            bool available = StoreService.RemoveAdsAvailable;
+            removeAdsButton.SetActive(available);
+            if (available && removeAdsText != null)
+                removeAdsText.text = Localization.Get("remove_ads") + "  " + StoreService.RemoveAdsPrice;
+        }
+    }
+
+    public void BuyRemoveAds()
+    {
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        StoreService.BuyRemoveAds(ok =>
+        {
+            GameAnalytics.Event("remove_ads", ("bought", ok));
+            if (ok)
+            {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
+                ShowMessage(Localization.Get("ads_removed"));
+            }
+            Refresh();
+        });
     }
 
     private void ShowMessage(string text)

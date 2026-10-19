@@ -431,7 +431,15 @@ public class TowerController : MonoBehaviour
         if (gm == null)
             gm = FindFirstObjectByType<GameManager>();
         if (gm != null)
-            gm.GameOver();
+            gm.OnTowerFailed();   // GameManager karar verir: "Devam etmek ister misin?" ya da oyun sonu
+    }
+
+    // Reklam ya da coin ile devam: düşen blok gider, kule kaldığı yerden yeni blokla sürer
+    public void Revive()
+    {
+        isGameOver = false;
+        combo = 0;
+        CreateNewBlock();
     }
 
     public void RestartGame()

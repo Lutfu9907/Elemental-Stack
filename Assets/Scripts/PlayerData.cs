@@ -31,6 +31,9 @@ public static class PlayerData
         // İlk oyun rehberi görüldü mü
         public bool tutorialDone;
 
+        // "Reklamları kaldır" satın alındı mı
+        public bool adsRemoved;
+
         // Giriş serisi
         public string lastLoginDay;
         public int loginStreak;
@@ -146,6 +149,15 @@ public static class PlayerData
 
         if (changed)
             Save();
+    }
+
+    public static bool AdsRemoved => Data.adsRemoved;
+
+    public static void SetAdsRemoved(bool removed)
+    {
+        if (Data.adsRemoved == removed) return;
+        Data.adsRemoved = removed;
+        Save();
     }
 
     // Eski sürümde oyun oynamış oyuncuya rehber gösterme
