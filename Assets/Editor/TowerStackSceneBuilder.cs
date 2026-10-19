@@ -59,6 +59,9 @@ public static class TowerStackSceneBuilder
     private const string RoundedSpritePath = "Assets/UI/Rounded.png";
     private const string MusicIconPath = "Assets/UI/MusicNote.png";
     private const string CoinIconPath = "Assets/UI/Coin.png";
+    private const string SkyArtFolder = "Assets/UI/Sky";
+    private const string SkyDecorMaterialPath = MaterialsFolder + "/SkyDecor.mat";
+    private const string SkyGlowMaterialPath = MaterialsFolder + "/SkyGlow.mat";
     private const float RoundedSpriteRadius = 64f;
 
     private static readonly Color Navy = new Color(0.137f, 0.224f, 0.357f);
@@ -433,6 +436,20 @@ public static class TowerStackSceneBuilder
         bgRenderer.sharedMaterial = backgroundMaterial;
         bgRenderer.shadowCastingMode = ShadowCastingMode.Off;
         bgRenderer.receiveShadows = false;
+
+        // Living sky: clouds and birds, a setting sun, or stars and a ringed planet, by sky theme
+        SkyDecor decor = camGo.AddComponent<SkyDecor>();
+        decor.cloud = GetOrCreateSkySprite("Cloud", 256, 128, CloudPixel, 1);
+        decor.softGlow = GetOrCreateSkySprite("SoftGlow", 128, 128, SoftGlowPixel, 1);
+        decor.bird = GetOrCreateSkySprite("Bird", 64, 32, BirdPixel, 4);
+        decor.planet = GetOrCreateSkySprite("Planet", 256, 256, PlanetPixel, 3);
+        decor.disc = roundedSprite;
+        decor.heightSource = rig.transform;
+        decor.decorMaterial = CreateMaterial(SkyDecorMaterialPath, "Sprites/Default");
+        decor.glowMaterial = CreateMaterial(SkyGlowMaterialPath, "Sprites/Default");
+        decor.glowMaterial.mainTexture = decor.softGlow.texture;
+        decor.glowMaterial.SetColor("_Color", new Color(1.6f, 1.6f, 1.6f, 1f));   // bright enough for bloom
+        EditorUtility.SetDirty(decor.glowMaterial);
 
         BackgroundGradient gradient = camGo.AddComponent<BackgroundGradient>();
         gradient.backgroundRenderer = bgRenderer;
@@ -841,6 +858,134 @@ public static class TowerStackSceneBuilder
     }
 
     // White eighth-note icon (head, stem and flag), drawn with 4x4 supersampling for smooth edges
+    // ------------------------------------------------------------ sky art
+
+    // Draws a sprite pixel by pixel. `pixel` returns a colour with alpha for a point given in
+    // pixels (y up); `samples` x samples points per pixel are averaged for smooth edges.
+    private static Sprite GetOrCreateSkySprite(string name, int width, int height, System.Func<Vector2, Color> pixel, int samples)
+    {
+        string path = SkyArtFolder + "/" + name + ".png";
+        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        if (existing != null)
+            return existing;
+
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        var pixels = new Color32[width * height];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                Color colorSum = Color.clear;
+                float alphaSum = 0f;
+                for (int sy = 0; sy < samples; sy++)
+                {
+                    for (int sx = 0; sx < samples; sx++)
+                    {
+                        Color c = pixel(new Vector2(x + (sx + 0.5f) / samples, y + (sy + 0.5f) / samples));
+                        colorSum += c * c.a;
+                        alphaSum += c.a;
+                    }
+                }
+                Color result = alphaSum > 0f ? colorSum / alphaSum : Color.clear;
+                result.a = alphaSum / (samples * samples);
+                pixels[y * width + x] = result;
+            }
+        }
+        texture.SetPixels32(pixels);
+        Directory.CreateDirectory(SkyArtFolder);
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(path);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = true;
+        importer.alphaIsTransparency = true;
+        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+    }
+
+    // Fluffy cloud: overlapping puffs with soft edges, a flatter base and a slightly grey underside
+    private static Color CloudPixel(Vector2 p)
+    {
+        Vector3[] puffs =
+        {
+            new Vector3(60f, 52f, 34f), new Vector3(100f, 72f, 44f), new Vector3(150f, 70f, 48f),
+            new Vector3(196f, 54f, 34f), new Vector3(128f, 46f, 40f),
+        };
+        float inside = -999f;
+        foreach (Vector3 puff in puffs)
+            inside = Mathf.Max(inside, puff.z - Vector2.Distance(p, new Vector2(puff.x, puff.y)));
+        float alpha = Mathf.Clamp01(inside / 10f) * Mathf.Clamp01((p.y - 16f) / 12f);
+        float shade = Mathf.Lerp(0.86f, 1f, Mathf.Clamp01((p.y - 20f) / 80f));
+        return new Color(shade, shade, Mathf.Min(1f, shade + 0.03f), alpha);
+    }
+
+    // Round glow fading from the centre; used for the sun, nebulae, stars and motes
+    private static Color SoftGlowPixel(Vector2 p)
+    {
+        float r = Vector2.Distance(p, new Vector2(64f, 64f)) / 64f;
+        float alpha = Mathf.Pow(Mathf.Clamp01(1f - r), 2f);
+        return new Color(1f, 1f, 1f, alpha);
+    }
+
+    // Simple bird: two curved wings meeting in the middle
+    private static Color BirdPixel(Vector2 p)
+    {
+        Vector2[] left = Bezier(new Vector2(4f, 20f), new Vector2(18f, 30f), new Vector2(32f, 13f));
+        Vector2[] right = Bezier(new Vector2(32f, 13f), new Vector2(46f, 30f), new Vector2(60f, 20f));
+        bool on = OnPolyline(p, left, 2.6f) || OnPolyline(p, right, 2.6f);
+        return new Color(1f, 1f, 1f, on ? 1f : 0f);
+    }
+
+    private static Vector2[] Bezier(Vector2 a, Vector2 b, Vector2 c)
+    {
+        var points = new Vector2[13];
+        for (int i = 0; i < points.Length; i++)
+        {
+            float t = i / (points.Length - 1f);
+            points[i] = (1 - t) * (1 - t) * a + 2 * (1 - t) * t * b + t * t * c;
+        }
+        return points;
+    }
+
+    // Ringed planet: a lit, softly banded purple globe with a tilted ring passing behind and in front
+    private static Color PlanetPixel(Vector2 p)
+    {
+        Vector2 c = new Vector2(128f, 128f);
+        const float radius = 62f;
+        Vector2 d = p - c;
+
+        // Ring in tilted coordinates
+        float angle = -18f * Mathf.Deg2Rad;
+        float rx = d.x * Mathf.Cos(angle) - d.y * Mathf.Sin(angle);
+        float ry = d.x * Mathf.Sin(angle) + d.y * Mathf.Cos(angle);
+        bool inRing = (rx * rx) / (118f * 118f) + (ry * ry) / (33f * 33f) <= 1f
+                      && (rx * rx) / (84f * 84f) + (ry * ry) / (23.5f * 23.5f) >= 1f;
+        float band = 0.85f + 0.15f * Mathf.Sin(Mathf.Sqrt(rx * rx / 118f / 118f + ry * ry / 33f / 33f) * 40f);
+        Color ring = new Color(0.92f * band, 0.82f * band, 1f * band, 0.85f);
+
+        float dist = d.magnitude;
+        if (dist <= radius)
+        {
+            if (inRing && ry < 0f)
+                return ring;   // front half of the ring covers the planet
+
+            float nx = d.x / radius, ny = d.y / radius;
+            float nz = Mathf.Sqrt(Mathf.Max(0f, 1f - nx * nx - ny * ny));
+            Vector3 light = new Vector3(-0.5f, 0.6f, 0.62f).normalized;
+            float lit = Mathf.Clamp(Vector3.Dot(new Vector3(nx, ny, nz), light), 0.18f, 1f);
+            float stripes = 1f + 0.07f * Mathf.Sin(ny * 18f);
+            Color baseColor = new Color(0.56f, 0.42f, 0.92f) * stripes;
+            Color color = baseColor * (0.35f + 0.75f * lit);
+            color.a = 1f;
+            return color;
+        }
+        return inRing ? ring : Color.clear;
+    }
+
     // ------------------------------------------------------------------ shop
 
     // Shop overlay: a white card with the coin total, a grid of block themes, a grid of sky themes
