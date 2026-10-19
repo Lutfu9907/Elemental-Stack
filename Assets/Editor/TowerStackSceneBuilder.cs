@@ -28,6 +28,9 @@ public static class TowerStackSceneBuilder
     private const string BackgroundMaterialPath = MaterialsFolder + "/Background.mat";
     private const string RippleMaterialPath = MaterialsFolder + "/Ripple.mat";
     private const string ParticleMaterialPath = MaterialsFolder + "/Particle.mat";
+    private const string FrameMaterialPath = MaterialsFolder + "/ElementFrame.mat";
+    private const string IconFolder = "Assets/UI/Icons";
+    private const string VolumeProfilePath = "Assets/Settings/GameVolumeProfile.asset";
     private const string EffectsFolder = "Assets/Effects";
 
     private struct ElementEffects
@@ -104,6 +107,13 @@ public static class TowerStackSceneBuilder
 
         Material blockMaterial = CreateMaterial(BlockMaterialPath, "Universal Render Pipeline/Lit");
         blockMaterial.SetFloat("_Smoothness", 0.15f);
+        // Emission stays black on plain blocks; element blocks set their own glow per block
+        blockMaterial.EnableKeyword("_EMISSION");
+        blockMaterial.SetColor("_EmissionColor", Color.black);
+        blockMaterial.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+        Material frameMaterial = CreateMaterial(FrameMaterialPath, "Sprites/Default");
+        frameMaterial.SetColor("_Color", new Color(1.8f, 1.8f, 1.8f, 1f));   // glowing element frame
+        EditorUtility.SetDirty(frameMaterial);
         Material backgroundMaterial = CreateMaterial(BackgroundMaterialPath, "Universal Render Pipeline/Unlit");
         // Unlit, vertex-coloured and transparent: the perfect ripple fades by its line colour
         Material rippleMaterial = CreateMaterial(RippleMaterialPath, "Sprites/Default");
@@ -124,6 +134,14 @@ public static class TowerStackSceneBuilder
         tower.iceEffect = effects.ice;
         tower.windEffect = effects.wind;
         tower.electricEffect = effects.electric;
+        tower.fireIcon = GetOrCreateIcon("Fire", FlameShape);
+        tower.iceIcon = GetOrCreateIcon("Ice", SnowflakeShape);
+        tower.windIcon = GetOrCreateIcon("Wind", WindShape);
+        tower.electricIcon = GetOrCreateIcon("Electric", BoltShape);
+        tower.iconBadge = roundedSprite;
+        tower.iconMaterial = rippleMaterial;
+        tower.frameMaterial = frameMaterial;
+        CreateBloomVolume();
         CreateCamera(backgroundMaterial, tower);
 
         // ---------- UI ----------
@@ -350,7 +368,7 @@ public static class TowerStackSceneBuilder
         cam.farClipPlane = 300f;
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = BackgroundColor;
-        camGo.AddComponent<UniversalAdditionalCameraData>();
+        camGo.AddComponent<UniversalAdditionalCameraData>().renderPostProcessing = true;   // for the bloom
         camGo.AddComponent<AudioListener>();
         camGo.AddComponent<CameraShake>();
         // Widens the view on tall phones so the sliding block stays on screen
@@ -487,6 +505,8 @@ public static class TowerStackSceneBuilder
         Material material = CreateMaterial(ParticleMaterialPath, "Sprites/Default");
         if (roundedSprite != null)
             material.mainTexture = roundedSprite.texture;   // soft round dots
+        // Tint above 1 makes the particles bright enough to catch the bloom
+        material.SetColor("_Color", new Color(2.2f, 2.2f, 2.2f, 1f));
         EditorUtility.SetDirty(material);
         Directory.CreateDirectory(EffectsFolder);
 
@@ -497,10 +517,10 @@ public static class TowerStackSceneBuilder
             {
                 var main = ps.main;
                 main.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.8f);
-                main.startSize = new ParticleSystem.MinMaxCurve(0.1f, 0.22f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.18f, 0.36f);
                 main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.78f, 0.3f), new Color(1f, 0.35f, 0.2f));
                 var emission = ps.emission;
-                emission.rateOverTime = 28f;
+                emission.rateOverTime = 40f;
                 SetVelocity(ps, new Vector2(-0.15f, 0.15f), new Vector2(0.6f, 1.4f), new Vector2(-0.15f, 0.15f));
             }),
             // Ice: small frosty crystals drifting down
@@ -508,10 +528,10 @@ public static class TowerStackSceneBuilder
             {
                 var main = ps.main;
                 main.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 1.2f);
-                main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.14f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.24f);
                 main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.88f, 0.98f, 1f), new Color(0.6f, 0.85f, 1f));
                 var emission = ps.emission;
-                emission.rateOverTime = 18f;
+                emission.rateOverTime = 28f;
                 SetVelocity(ps, new Vector2(-0.1f, 0.1f), new Vector2(-0.4f, -0.1f), new Vector2(-0.1f, 0.1f));
             }),
             // Wind: pale streaks blown sideways
@@ -519,10 +539,10 @@ public static class TowerStackSceneBuilder
             {
                 var main = ps.main;
                 main.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.7f);
-                main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.08f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.12f);
                 main.startColor = new Color(1f, 1f, 1f, 0.75f);
                 var emission = ps.emission;
-                emission.rateOverTime = 20f;
+                emission.rateOverTime = 32f;
                 SetVelocity(ps, new Vector2(-2.5f, 2.5f), new Vector2(0f, 0.3f), new Vector2(-2.5f, 2.5f));
                 var renderer = ps.GetComponent<ParticleSystemRenderer>();
                 renderer.renderMode = ParticleSystemRenderMode.Stretch;
@@ -534,11 +554,11 @@ public static class TowerStackSceneBuilder
             {
                 var main = ps.main;
                 main.startLifetime = new ParticleSystem.MinMaxCurve(0.15f, 0.3f);
-                main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.09f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.14f);
                 main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.5f), Color.white);
                 var emission = ps.emission;
                 emission.rateOverTime = 0f;
-                emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 6, 10, 0, 0.3f) });
+                emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 10, 16, 0, 0.25f) });
                 SetVelocity(ps, new Vector2(-3f, 3f), new Vector2(-3f, 3f), new Vector2(-3f, 3f));
                 var renderer = ps.GetComponent<ParticleSystemRenderer>();
                 renderer.renderMode = ParticleSystemRenderMode.Stretch;
@@ -834,6 +854,170 @@ public static class TowerStackSceneBuilder
         importer.alphaIsTransparency = true;
         importer.SaveAndReimport();
         return AssetDatabase.LoadAssetAtPath<Sprite>(MusicIconPath);
+    }
+
+    // ------------------------------------------------------ element icons
+
+    // White 128 px element symbol, drawn from a shape test with 4x4 supersampling.
+    // Coordinates are in pixels with y pointing up.
+    private static Sprite GetOrCreateIcon(string name, System.Func<Vector2, bool> inside)
+    {
+        string path = IconFolder + "/" + name + ".png";
+        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        if (existing != null)
+            return existing;
+
+        const int size = 128;
+        const int samples = 4;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        var pixels = new Color32[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                int hits = 0;
+                for (int sy = 0; sy < samples; sy++)
+                    for (int sx = 0; sx < samples; sx++)
+                        if (inside(new Vector2(x + (sx + 0.5f) / samples, y + (sy + 0.5f) / samples)))
+                            hits++;
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(255 * hits / (samples * samples)));
+            }
+        }
+        texture.SetPixels32(pixels);
+        Directory.CreateDirectory(IconFolder);
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(path);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = true;   // stays smooth when shown small in the world
+        importer.alphaIsTransparency = true;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+    }
+
+    // Flame: a teardrop leaning slightly right, with a hollow inner flame
+    private static bool FlameShape(Vector2 p)
+    {
+        return Teardrop(p, 64f, 44f, 32f, 74f) && !Teardrop(p, 64f, 38f, 13f, 32f);
+    }
+
+    private static bool Teardrop(Vector2 p, float cx, float cy, float radius, float height)
+    {
+        if (Vector2.Distance(p, new Vector2(cx, cy)) <= radius) return true;
+        if (p.y < cy || p.y > cy + height) return false;
+        float t = (p.y - cy) / height;
+        float center = cx + radius * 0.3f * t * t;
+        float halfWidth = radius * Mathf.Pow(1f - t, 1.3f);
+        return Mathf.Abs(p.x - center) <= halfWidth;
+    }
+
+    // Snowflake: six arms with a pair of small branches each
+    private static bool SnowflakeShape(Vector2 p)
+    {
+        Vector2 c = new Vector2(64f, 64f);
+        if (Vector2.Distance(p, c) <= 9f) return true;
+        for (int i = 0; i < 6; i++)
+        {
+            float angle = i * 60f * Mathf.Deg2Rad;
+            Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            if (DistanceToSegment(p, c, c + dir * 54f) <= 5f) return true;
+            Vector2 branchRoot = c + dir * 34f;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                float branchAngle = angle + side * 45f * Mathf.Deg2Rad;
+                Vector2 branchDir = new Vector2(Mathf.Cos(branchAngle), Mathf.Sin(branchAngle));
+                if (DistanceToSegment(p, branchRoot, branchRoot + branchDir * 15f) <= 4.5f) return true;
+            }
+        }
+        return false;
+    }
+
+    // Wind: three strokes, two of them curling at the end
+    private static bool WindShape(Vector2 p)
+    {
+        return OnPolyline(p, Curl(new Vector2(12f, 86f), new Vector2(82f, 86f), new Vector2(82f, 98f), 12f, -90f, 180f), 5f)
+            || OnPolyline(p, new[] { new Vector2(22f, 62f), new Vector2(108f, 62f) }, 5f)
+            || OnPolyline(p, Curl(new Vector2(12f, 38f), new Vector2(76f, 38f), new Vector2(76f, 26f), 12f, 90f, -180f), 5f);
+    }
+
+    // A straight line from `start` to `end`, then an arc around `center` from `fromDeg` to `toDeg`
+    private static Vector2[] Curl(Vector2 start, Vector2 end, Vector2 center, float radius, float fromDeg, float toDeg)
+    {
+        const int steps = 12;
+        var points = new Vector2[steps + 2];
+        points[0] = start;
+        points[1] = end;
+        for (int i = 1; i <= steps; i++)
+        {
+            float a = Mathf.Lerp(fromDeg, toDeg, i / (float)steps) * Mathf.Deg2Rad;
+            points[i + 1] = center + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius;
+        }
+        return points;
+    }
+
+    // Lightning bolt polygon
+    private static bool BoltShape(Vector2 p)
+    {
+        Vector2[] bolt =
+        {
+            new Vector2(76f, 124f), new Vector2(30f, 58f), new Vector2(58f, 58f), new Vector2(44f, 4f),
+            new Vector2(98f, 74f), new Vector2(68f, 74f), new Vector2(88f, 124f),
+        };
+        return InsidePolygon(p, bolt);
+    }
+
+    private static bool OnPolyline(Vector2 p, Vector2[] points, float halfThickness)
+    {
+        for (int i = 0; i < points.Length - 1; i++)
+            if (DistanceToSegment(p, points[i], points[i + 1]) <= halfThickness)
+                return true;
+        return false;
+    }
+
+    private static bool InsidePolygon(Vector2 p, Vector2[] polygon)
+    {
+        bool inside = false;
+        for (int i = 0, j = polygon.Length - 1; i < polygon.Length; j = i++)
+        {
+            Vector2 a = polygon[i], b = polygon[j];
+            if ((a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x)
+                inside = !inside;
+        }
+        return inside;
+    }
+
+    // ------------------------------------------------------------- bloom
+
+    // Soft glow for bright things only (element blocks, frames, particles). The threshold sits
+    // above sun-lit white blocks so the plain tower does not glow.
+    private static void CreateBloomVolume()
+    {
+        var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(VolumeProfilePath);
+        if (profile == null)
+        {
+            profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            AssetDatabase.CreateAsset(profile, VolumeProfilePath);
+        }
+        if (!profile.TryGet(out Bloom bloom))
+        {
+            bloom = profile.Add<Bloom>(true);
+            bloom.name = "Bloom";
+            AssetDatabase.AddObjectToAsset(bloom, profile);
+        }
+        bloom.active = true;
+        bloom.threshold.Override(1.5f);
+        bloom.intensity.Override(1f);
+        bloom.scatter.Override(0.6f);
+        EditorUtility.SetDirty(bloom);
+        EditorUtility.SetDirty(profile);
+        AssetDatabase.SaveAssets();
+
+        var volume = new GameObject("Global Volume").AddComponent<Volume>();
+        volume.isGlobal = true;
+        volume.sharedProfile = profile;
     }
 
     private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
