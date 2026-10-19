@@ -19,6 +19,7 @@ public static class SoundSynth
         public AudioClip slice;
         public AudioClip gameOver;
         public AudioClip button;
+        public AudioClip coin;
         public AudioClip introJingle;
         public AudioClip music;
     }
@@ -33,6 +34,7 @@ public static class SoundSynth
             slice = Save("Slice", Slice()),
             gameOver = Save("GameOver", GameOver()),
             button = Save("Button", Button()),
+            coin = Save("Coin", Coin()),
             introJingle = Save("IntroJingle", IntroJingle()),
             music = Save("MusicLoop", MusicLoop(), true),
         };
@@ -266,6 +268,15 @@ public static class SoundSynth
             float second = Note(t, 0.28f, 261.63f, 0.6f); // C4
             return first + second;
         });
+    }
+
+    // Two quick bright bell notes, like picking up a coin
+    private static float[] Coin()
+    {
+        var buffer = new float[(int)(0.5f * SampleRate)];
+        AddBell(buffer, 0f, Midi(83), 0.5f, 9f);      // B5
+        AddBell(buffer, 0.07f, Midi(88), 0.6f, 6f);   // E6
+        return Finish(buffer, 0.8f, false);
     }
 
     // Quick rising pop for buttons

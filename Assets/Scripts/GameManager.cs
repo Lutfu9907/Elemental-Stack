@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 using TMPro;
 
@@ -15,17 +16,25 @@ public class GameManager : MonoBehaviour
 
     [Header("Start Screen")]
     public TextMeshProUGUI startBestText;
+    public TextMeshProUGUI startCoinsText;
 
     [Header("Game Over")]
     public TextMeshProUGUI finalScoreText;
     public TextMeshProUGUI finalBestText;
     public GameObject newBestBadge;
+    public TextMeshProUGUI coinsEarnedText;
+
+    [Header("Coins")]
+    [Tooltip("Her kat için kazanılan coin")]
+    public int coinsPerFloor = 1;
+    [Tooltip("Her perfect için ek coin")]
+    public int coinsPerPerfect = 1;
+    public float coinCountDelay = 0.5f;
+    public float coinCountDuration = 0.9f;
 
     [Header("Other")]
     public FadeController fade;
     public TowerController tower;
-
-    private const string HighScoreKey = "HighScore";
 
     private int score = 0;
     private int highScore = 0;
@@ -35,18 +44,20 @@ public class GameManager : MonoBehaviour
 
     void Awake()
     {
-        highScore = PlayerPrefs.GetInt(HighScoreKey, 0);
+        highScore = PlayerData.BestScore;
         highScoreAtStart = highScore;
     }
 
     void OnEnable()
     {
         Localization.LanguageChanged += RefreshTexts;
+        PlayerData.CoinsChanged += RefreshTexts;
     }
 
     void OnDisable()
     {
         Localization.LanguageChanged -= RefreshTexts;
+        PlayerData.CoinsChanged -= RefreshTexts;
     }
 
     void Start()
@@ -80,13 +91,7 @@ public class GameManager : MonoBehaviour
     public void UpdateScore(int newScore)
     {
         score = newScore;
-
-        if (score > highScore)
-        {
-            highScore = score;
-            PlayerPrefs.SetInt(HighScoreKey, highScore);
-        }
-
+        highScore = Mathf.Max(highScore, score);
         RefreshTexts();
     }
 
@@ -95,7 +100,13 @@ public class GameManager : MonoBehaviour
         if (isGameOver) return;
         isGameOver = true;
 
-        PlayerPrefs.Save();
+        // Kazanılan coin'ler: her kat + her perfect
+        int floors = tower != null ? tower.floors : 0;
+        int perfects = tower != null ? tower.perfectCount : 0;
+        int coinsEarned = floors * coinsPerFloor + perfects * coinsPerPerfect;
+        PlayerData.RecordGame(score, floors, perfects);
+        PlayerData.AddCoins(coinsEarned);
+
         RefreshTexts();
         if (newBestBadge != null)
             newBestBadge.SetActive(score > highScoreAtStart);
@@ -104,6 +115,7 @@ public class GameManager : MonoBehaviour
         gameOverPanel.Show();
 
         Time.timeScale = 0f;
+        StartCoroutine(CountCoins(coinsEarned));
     }
 
     public void RestartGame()
@@ -122,7 +134,27 @@ public class GameManager : MonoBehaviour
         Application.Quit();
     }
 
-    // Skor ve "en iyi" yazılarını o anki değer ve dile göre yeniler
+    // Oyun sonu kartında kazanılan coin 0'dan yukarı sayılır; oyun durmuş olduğu için ölçeksiz zaman
+    private IEnumerator CountCoins(int earned)
+    {
+        if (coinsEarnedText == null) yield break;
+
+        coinsEarnedText.text = "+0";
+        yield return new WaitForSecondsRealtime(coinCountDelay);
+        if (earned <= 0) yield break;
+
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
+        for (float t = 0f; t < coinCountDuration; t += Time.unscaledDeltaTime)
+        {
+            float eased = 1f - Mathf.Pow(1f - t / coinCountDuration, 2f);
+            coinsEarnedText.text = "+" + Mathf.RoundToInt(earned * eased);
+            yield return null;
+        }
+        coinsEarnedText.text = "+" + earned;
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
+    }
+
+    // Skor, "en yüksek skor" ve coin yazılarını o anki değer ve dile göre yeniler
     private void RefreshTexts()
     {
         string best = Localization.Format("best", highScore);
@@ -130,6 +162,7 @@ public class GameManager : MonoBehaviour
         if (scoreText != null) scoreText.text = score.ToString();
         if (highScoreText != null) highScoreText.text = best;
         if (startBestText != null) startBestText.text = best;
+        if (startCoinsText != null) startCoinsText.text = PlayerData.Coins.ToString("N0");
         if (finalScoreText != null) finalScoreText.text = score.ToString();
         if (finalBestText != null) finalBestText.text = best;
     }

@@ -53,6 +53,7 @@ public class TowerController : MonoBehaviour
     public TextMeshProUGUI scoreText;
     public int score = 0;     // puan (rüzgâr bonusu ile kat sayısından fazla olabilir)
     public int floors = 0;    // yerleşmiş kat sayısı; eksen, hız, element ve arka plan buna göre
+    public int perfectCount = 0;   // bu oyundaki toplam perfect (coin hesabı için)
 
     private GameManager gm;
     private ScorePunchEffect scorePunch;
@@ -216,6 +217,7 @@ public class TowerController : MonoBehaviour
             block.position = pos;
 
             combo++;
+            perfectCount++;
             badPlacementsInRow = 0;
             bonusPoints = ElementRules.PerfectBonusPoints(currentElement);
 
