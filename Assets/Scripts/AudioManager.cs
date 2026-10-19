@@ -10,6 +10,7 @@ public class AudioManager : MonoBehaviour
     public AudioClip perfectSound;      // perfect'te; seri uzadıkça tonu yükselir
     public AudioClip gameOverSound;     // game over
     public AudioClip buttonClickSound;  // buton sesi
+    public AudioClip coinSound;         // coin kazanınca
 
     [Header("Music")]
     public AudioClip introJingle;       // LD Games intro'sunun altındaki kısa melodi
@@ -110,6 +111,11 @@ public class AudioManager : MonoBehaviour
         int step = PerfectScale[Mathf.Clamp(combo - 1, 0, PerfectScale.Length - 1)];
         perfectSource.pitch = Mathf.Pow(2f, step / 12f);
         perfectSource.PlayOneShot(perfectSound);
+    }
+
+    public void PlayCoin()
+    {
+        PlaySound(coinSound);
     }
 
     public void PlayButton()
