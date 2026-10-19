@@ -2,25 +2,24 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Başlangıç ekranındaki "Elementler" sayfası: dört elementin ne yaptığı.
-// Oyuncunun henüz karşılaşmadığı element kilitli görünür ve hangi katta geleceği yazar.
+// Başlangıç ekranındaki "Elementler" sayfası: dört elementin ne yaptığı ve kaçıncı katta geldiği.
+// Her element kendi renginde görünür; oyuncunun henüz karşılaşmadığı elementin kat etiketinde kilit olur.
 public class ElementsPanel : MonoBehaviour
 {
     [System.Serializable]
     public class Row
     {
         public Block.BlockElementType element;
+        public Image background;
         public Image badge;
-        public Image icon;
         public TextMeshProUGUI nameText;
         public TextMeshProUGUI infoText;
+        public Image floorPill;
+        public TextMeshProUGUI floorText;
+        public GameObject lockIcon;
     }
 
     public Row[] rows;
-
-    private static readonly Color LockedBadge = new Color(0.85f, 0.88f, 0.93f);
-    private static readonly Color LockedText = new Color(0.42f, 0.5f, 0.62f);
-    private static readonly Color Navy = new Color(0.137f, 0.224f, 0.357f);
 
     void OnEnable()
     {
@@ -50,16 +49,23 @@ public class ElementsPanel : MonoBehaviour
         foreach (Row row in rows)
         {
             string key = ElementBanner.ElementKey(row.element);
-            int floor = ElementRules.UnlockFloor(row.element);
+            Color color = Block.ElementColor(row.element);
             bool known = PlayerData.ElementSeenCount(row.element) > 0;
 
-            row.badge.color = known ? Block.ElementColor(row.element) : LockedBadge;
-            row.icon.color = known ? Color.white : LockedText;
-            row.nameText.color = known ? Navy : LockedText;
-            row.nameText.text = known
-                ? Localization.Get("element_" + key) + "  <size=70%><color=#6B7A90>" + Localization.Format("element_floor", floor) + "</color></size>"
-                : "? ? ?";
-            row.infoText.text = known ? Localization.Get("element_" + key + "_info") : Localization.Format("element_locked", floor);
+            row.background.color = new Color(color.r, color.g, color.b, 0.13f);
+            row.badge.color = color;
+            row.nameText.text = Localization.Get("element_" + key);
+            row.nameText.color = Darker(color);
+            row.infoText.text = Localization.Get("element_" + key + "_info");
+
+            // Kat etiketi: tanınan elementte sade, henüz görülmeyende kilitli ve elementin renginde
+            row.floorText.text = Localization.Format("element_floor_short", ElementRules.UnlockFloor(row.element));
+            row.lockIcon.SetActive(!known);
+            row.floorText.margin = known ? new Vector4(16f, 0f, 16f, 0f) : new Vector4(46f, 0f, 14f, 0f);
+            row.floorPill.color = known ? Color.white : color;
+            row.floorText.color = known ? Darker(color) : Color.white;
         }
     }
+
+    private static Color Darker(Color c) => new Color(c.r * 0.72f, c.g * 0.72f, c.b * 0.72f, 1f);
 }

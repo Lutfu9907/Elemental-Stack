@@ -1467,7 +1467,7 @@ public static class TowerStackSceneBuilder
     }
 
     // One mission: its text, a progress bar with 3/5, and the reward or a green tick when done
-    // Elements page: one row per element with its colour badge, icon, name and what it does
+    // Elements page: one tinted row per element with its colour badge, icon, name, floor and what it does
     private static ElementsPanel CreateElementsPanel(Transform canvas)
     {
         Image background = CreateImage("ElementsPanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
@@ -1488,26 +1488,49 @@ public static class TowerStackSceneBuilder
             (Block.BlockElementType.Electric, GetOrCreateIcon("Electric", BoltShape)),
         };
 
+        Sprite lockIcon = GetOrCreateIcon("Lock", LockShape);
         ElementsPanel panel = background.gameObject.AddComponent<ElementsPanel>();
         panel.rows = new ElementsPanel.Row[elements.Length];
-        float y = 360f;
+        float y = 355f;
         for (int i = 0; i < elements.Length; i++, y -= 240f)
         {
             var (element, icon) = elements[i];
+            Color color = Block.ElementColor(element);
             var row = new ElementsPanel.Row { element = element };
 
-            row.badge = CreateRounded(element + "Badge", card.transform, Block.ElementColor(element), 75f);
-            row.badge.raycastTarget = false;
-            Place(row.badge.rectTransform, new Vector2(-310f, y), new Vector2(150f, 150f));
-            row.icon = CreateImage("Icon", row.badge.transform, Color.white);
-            row.icon.sprite = icon;
-            row.icon.raycastTarget = false;
-            Place(row.icon.rectTransform, Vector2.zero, new Vector2(96f, 96f));
+            // Soft tint of the element's colour behind the whole row
+            row.background = CreateRounded(element + "Row", card.transform, new Color(color.r, color.g, color.b, 0.13f), 44f);
+            row.background.raycastTarget = false;
+            Place(row.background.rectTransform, new Vector2(0f, y), new Vector2(820f, 215f));
 
-            row.nameText = CreateText(element + "Name", card.transform, element.ToString(), 52, Navy, TextAlignmentOptions.Left);
-            Place(row.nameText.rectTransform, new Vector2(90f, y + 48f), new Vector2(580f, 70f));
-            row.infoText = CreateText(element + "Info", card.transform, "", 36, MutedNavy, TextAlignmentOptions.TopLeft);
-            Place(row.infoText.rectTransform, new Vector2(90f, y - 38f), new Vector2(580f, 100f));
+            // Glowing colour badge with the white element icon
+            Image halo = CreateRounded("Halo", row.background.transform, new Color(color.r, color.g, color.b, 0.35f), 85f);
+            halo.raycastTarget = false;
+            Place(halo.rectTransform, new Vector2(-300f, 0f), new Vector2(170f, 170f));
+            row.badge = CreateRounded("Badge", row.background.transform, color, 70f);
+            row.badge.raycastTarget = false;
+            Place(row.badge.rectTransform, new Vector2(-300f, 0f), new Vector2(140f, 140f));
+            Image iconImage = CreateImage("Icon", row.badge.transform, Color.white);
+            iconImage.sprite = icon;
+            iconImage.raycastTarget = false;
+            Place(iconImage.rectTransform, Vector2.zero, new Vector2(92f, 92f));
+
+            row.nameText = CreateText("Name", row.background.transform, element.ToString(), 54, Navy, TextAlignmentOptions.Left);
+            Place(row.nameText.rectTransform, new Vector2(-10f, 50f), new Vector2(380f, 72f));
+
+            // "Floor 10" tag at the top right; a lock sits in it until the element has been met
+            row.floorPill = CreateRounded("Floor", row.background.transform, Color.white, 28f);
+            row.floorPill.raycastTarget = false;
+            Place(row.floorPill.rectTransform, new Vector2(290f, 50f), new Vector2(190f, 56f));
+            row.floorText = CreatePillLabel(row.floorPill, "Floor 10", 30, Navy, null);
+            Image lockImage = CreateImage("Lock", row.floorPill.transform, Color.white);
+            lockImage.sprite = lockIcon;
+            lockImage.raycastTarget = false;
+            Place(lockImage.rectTransform, new Vector2(-62f, 0f), new Vector2(30f, 30f));
+            row.lockIcon = lockImage.gameObject;
+
+            row.infoText = CreateText("Info", row.background.transform, "", 36, Navy, TextAlignmentOptions.TopLeft);
+            Place(row.infoText.rectTransform, new Vector2(100f, -38f), new Vector2(600f, 100f));
 
             panel.rows[i] = row;
         }
@@ -1517,6 +1540,16 @@ public static class TowerStackSceneBuilder
 
         background.gameObject.SetActive(false);
         return panel;
+    }
+
+    // Padlock: a rounded body with a keyhole and an arched shackle on top
+    private static bool LockShape(Vector2 p)
+    {
+        bool body = p.x > 26f && p.x < 102f && p.y > 10f && p.y < 72f;
+        float r = (p - new Vector2(64f, 72f)).magnitude;
+        bool shackle = p.y >= 68f && r < 32f && r > 19f;
+        bool keyhole = (p - new Vector2(64f, 46f)).magnitude < 9f || (Mathf.Abs(p.x - 64f) < 4f && p.y > 24f && p.y < 46f);
+        return (body || shackle) && !keyhole;
     }
 
     private static MissionRow CreateMissionRowTemplate(Transform parent)
