@@ -265,6 +265,11 @@ public class TowerController : MonoBehaviour
 
         AudioManager.Instance.PlaySound(AudioManager.Instance.placeBlockSound);
 
+        // Blok temasının yerleşme efekti (şeker serpintisi, talaş, altın tozu, neon halka)
+        Block placedBlock = block.GetComponent<Block>();
+        if (placedBlock != null && SkinVisuals.Instance != null)
+            SkinVisuals.Instance.OnBlockPlaced(placedBlock, blockHeight);
+
         // Element bloğu yerleşince kendi renginde bir halka açılır
         if (placedElement != Block.BlockElementType.None)
         {
