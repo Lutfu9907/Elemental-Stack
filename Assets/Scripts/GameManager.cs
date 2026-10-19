@@ -41,6 +41,15 @@ public class GameManager : MonoBehaviour
     public MissionTracker missions;
     public DailyRewardPanel dailyReward;
     public TextMeshProUGUI missionsButtonText;   // "Görevler 1/3"
+    public GameObject pausePanel;
+
+    [Header("Continue and rewards")]
+    public ContinuePanel continuePanel;
+    public GameObject doubleCoinsButton;
+    [Tooltip("Coin ile devam etmenin bedeli")]
+    public int continueCost = 100;
+    [Tooltip("Bu kattan önce ıskalayınca devam teklif edilmez")]
+    public int minFloorsForContinue = 5;
 
     private int score = 0;
     private int highScore = 0;
@@ -49,6 +58,9 @@ public class GameManager : MonoBehaviour
     private bool isGameStarted = false;
     private Color titleColor;
     private Texture2D shareImage;
+    private bool isPaused;
+    private bool continueUsed;
+    private int lastCoinsEarned;
 
     void Awake()
     {
@@ -99,6 +111,7 @@ public class GameManager : MonoBehaviour
 
         if (tower != null)
             tower.StartTower();
+        GameAnalytics.Event("game_start", ("games", PlayerData.GamesPlayed));
 
         RefreshTexts();
     }
@@ -125,6 +138,7 @@ public class GameManager : MonoBehaviour
         PlayerData.AddCoins(coinsEarned);
         if (missions != null)
             missions.OnGameOver(coinsEarned);
+        GameAnalytics.Event("game_over", ("floors", floors), ("score", score), ("coins", coinsEarned), ("continued", continueUsed));
 
         RefreshTexts();
         if (newBestBadge != null)
@@ -144,7 +158,11 @@ public class GameManager : MonoBehaviour
 
         gameUIPanel.SetActive(false);
         gameOverPanel.Show();
-        StartCoroutine(CountCoins(coinsEarned));
+
+        lastCoinsEarned = coinsEarned;
+        if (doubleCoinsButton != null)
+            doubleCoinsButton.SetActive(coinsEarned > 0 && AdsManager.Instance != null && AdsManager.Instance.RewardedReady);
+        StartCoroutine(CountCoins(0, coinsEarned, coinCountDelay));
     }
 
     public void Share()
@@ -160,14 +178,124 @@ public class GameManager : MonoBehaviour
             Destroy(shareImage);
     }
 
+    // Duraklat: oyun durur, üstte "Devam / Ayarlar / Ana ekran" kartı çıkar
+    public void PauseGame()
+    {
+        if (!isGameStarted || isGameOver || isPaused) return;
+        isPaused = true;
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        Time.timeScale = 0f;
+        if (pausePanel != null)
+            pausePanel.SetActive(true);
+    }
+
+    public void ResumeGame()
+    {
+        if (!isPaused) return;
+        isPaused = false;
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        if (pausePanel != null)
+            pausePanel.SetActive(false);
+        Time.timeScale = 1f;
+    }
+
+    // Telefon arka plana alınınca (arama, bildirim) oyun kendiliğinden duraklar
+    void OnApplicationPause(bool paused)
+    {
+        if (paused)
+            PauseGame();
+    }
+
     public void RestartGame()
     {
         if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
-        Time.timeScale = 1f;
 
+        // Sırası geldiyse önce ara reklam, sonra yeni oyun
+        if (AdsManager.Instance != null)
+            AdsManager.Instance.OnGameFinished(ReloadScene);
+        else
+            ReloadScene();
+    }
+
+    private void ReloadScene()
+    {
+        Time.timeScale = 1f;
         fade.FadeIn(() =>
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        });
+    }
+
+    // ------------------------------------------------------------ devam et
+
+    // Blok ıskalanınca TowerController çağırır. Bu oyunda henüz devam edilmediyse ve
+    // reklam ya da yeterli coin varsa "Devam etmek ister misin?" sorulur; yoksa oyun biter.
+    public void OnTowerFailed()
+    {
+        if (isGameOver) return;
+
+        bool adReady = AdsManager.Instance != null && AdsManager.Instance.RewardedReady;
+        bool canPay = PlayerData.Coins >= continueCost;
+        bool worthIt = tower != null && tower.floors >= minFloorsForContinue;
+        if (!continueUsed && continuePanel != null && worthIt && (adReady || canPay))
+        {
+            Time.timeScale = 0f;
+            continuePanel.Show(this, continueCost, adReady, canPay);
+        }
+        else
+        {
+            GameOver();
+        }
+    }
+
+    public void ContinueWithAd()
+    {
+        AdsManager.Instance.ShowRewarded(earned =>
+        {
+            GameAnalytics.Event("continue_ad", ("watched", earned));
+            if (earned) Revive();
+            else DeclineContinue();
+        });
+    }
+
+    public void ContinueWithCoins()
+    {
+        if (PlayerData.SpendCoins(continueCost))
+        {
+            if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
+            GameAnalytics.Event("continue_coins", ("cost", continueCost));
+            Revive();
+        }
+    }
+
+    public void DeclineContinue()
+    {
+        if (continuePanel != null)
+            continuePanel.Hide();
+        GameOver();
+    }
+
+    private void Revive()
+    {
+        continueUsed = true;
+        if (continuePanel != null)
+            continuePanel.Hide();
+        Time.timeScale = 1f;
+        tower.Revive();
+    }
+
+    // Oyun sonu kartındaki "x2": reklam izlenirse bu oyunun coin'leri bir kez daha verilir
+    public void DoubleCoins()
+    {
+        if (doubleCoinsButton != null)
+            doubleCoinsButton.SetActive(false);
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        AdsManager.Instance.ShowRewarded(earned =>
+        {
+            GameAnalytics.Event("double_coins", ("watched", earned));
+            if (!earned) return;
+            PlayerData.AddCoins(lastCoinsEarned);
+            StartCoroutine(CountCoins(lastCoinsEarned, lastCoinsEarned * 2, 0f));
         });
     }
 
@@ -177,19 +305,19 @@ public class GameManager : MonoBehaviour
     }
 
     // Oyun sonu kartında kazanılan coin 0'dan yukarı sayılır; oyun durmuş olduğu için ölçeksiz zaman
-    private IEnumerator CountCoins(int earned)
+    private IEnumerator CountCoins(int from, int earned, float delay)
     {
         if (coinsEarnedText == null) yield break;
 
-        coinsEarnedText.text = "+0";
-        yield return new WaitForSecondsRealtime(coinCountDelay);
-        if (earned <= 0) yield break;
+        coinsEarnedText.text = "+" + from;
+        yield return new WaitForSecondsRealtime(delay);
+        if (earned <= from) yield break;
 
         if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
         for (float t = 0f; t < coinCountDuration; t += Time.unscaledDeltaTime)
         {
             float eased = 1f - Mathf.Pow(1f - t / coinCountDuration, 2f);
-            coinsEarnedText.text = "+" + Mathf.RoundToInt(earned * eased);
+            coinsEarnedText.text = "+" + Mathf.RoundToInt(Mathf.Lerp(from, earned, eased));
             yield return null;
         }
         coinsEarnedText.text = "+" + earned;

@@ -28,6 +28,12 @@ public static class PlayerData
         public List<bool> missionDone = new List<bool>();
         public bool missionBonusClaimed;
 
+        // İlk oyun rehberi görüldü mü
+        public bool tutorialDone;
+
+        // "Reklamları kaldır" satın alındı mı
+        public bool adsRemoved;
+
         // Giriş serisi
         public string lastLoginDay;
         public int loginStreak;
@@ -143,6 +149,25 @@ public static class PlayerData
 
         if (changed)
             Save();
+    }
+
+    public static bool AdsRemoved => Data.adsRemoved;
+
+    public static void SetAdsRemoved(bool removed)
+    {
+        if (Data.adsRemoved == removed) return;
+        Data.adsRemoved = removed;
+        Save();
+    }
+
+    // Eski sürümde oyun oynamış oyuncuya rehber gösterme
+    public static bool TutorialDone => Data.tutorialDone || Data.gamesPlayed > 0;
+
+    public static void MarkTutorialDone()
+    {
+        if (Data.tutorialDone) return;
+        Data.tutorialDone = true;
+        Save();
     }
 
     public static int MissionCount => Data.missionIds.Count;
