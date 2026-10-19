@@ -75,6 +75,7 @@ public static class Localization
         { "ads_removed",      new[] { "Ads removed. Thank you!", "Reklamlar kaldırıldı. Teşekkürler!" } },
         { "restore_purchases", new[] { "Restore purchases", "Satın alımları geri yükle" } },
         { "restore_none",     new[] { "Nothing to restore", "Geri yüklenecek satın alım yok" } },
+        { "ad_privacy",       new[] { "Ad privacy choices", "Reklam izin seçenekleri" } },
         { "test_ad",          new[] { "Test ad", "Test reklamı" } },
         { "privacy_policy",  new[] { "Privacy policy", "Gizlilik politikası" } },
         { "on",              new[] { "On", "Açık" } },

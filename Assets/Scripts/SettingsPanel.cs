@@ -16,6 +16,7 @@ public class SettingsPanel : MonoBehaviour
     public Image hapticsPill;
     public TextMeshProUGUI versionText;
     public TextMeshProUGUI restoreText;
+    public GameObject adPrivacyButton;   // sadece reklam izni sorulan ülkelerde (AB, İngiltere) görünür
 
     private static readonly Color OnColor = new Color(1f, 0.824f, 0.302f);
     private static readonly Color OffColor = new Color(0.85f, 0.88f, 0.93f);
@@ -87,6 +88,13 @@ public class SettingsPanel : MonoBehaviour
         Application.OpenURL(GameLinks.PrivacyPolicy);
     }
 
+    public void OpenAdPrivacy()
+    {
+        Click();
+        if (AdsManager.Instance != null)
+            AdsManager.Instance.ShowPrivacyOptions();
+    }
+
     // Reklamsız sürümü yeniden yüklenen telefona geri getirir
     public void RestorePurchases()
     {
@@ -108,6 +116,8 @@ public class SettingsPanel : MonoBehaviour
         languageValue.text = Localization.Get("language_name");
         if (restoreText != null)
             restoreText.text = Localization.Get("restore_purchases");
+        if (adPrivacyButton != null)
+            adPrivacyButton.SetActive(AdsManager.Instance != null && AdsManager.Instance.PrivacyOptionsRequired);
         if (versionText != null)
             versionText.text = "v" + Application.version;
     }
