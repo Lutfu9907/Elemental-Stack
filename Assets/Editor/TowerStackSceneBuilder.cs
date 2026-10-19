@@ -356,10 +356,20 @@ public static class TowerStackSceneBuilder
         Place(coinsRow, new Vector2(0f, -240f), new Vector2(600f, 90f));
 
         Image restartPill = CreateRounded("RestartButton", card.transform, Yellow, 75f);
-        Place(restartPill.rectTransform, new Vector2(0f, -395f), new Vector2(620f, 150f));
+        Place(restartPill.rectTransform, new Vector2(-85f, -395f), new Vector2(520f, 150f));
         Button restartButton = restartPill.gameObject.AddComponent<Button>();
         restartButton.targetGraphic = restartPill;
         CreatePillLabel(restartPill, "Play again", 60, YellowText, "play_again");
+
+        // Round share button beside Play again
+        Image sharePill = CreateRounded("ShareButton", card.transform, ItemColor, 75f);
+        Place(sharePill.rectTransform, new Vector2(270f, -395f), new Vector2(150f, 150f));
+        Button shareButton = sharePill.gameObject.AddComponent<Button>();
+        shareButton.targetGraphic = sharePill;
+        Image shareIcon = CreateImage("Icon", sharePill.transform, Navy);
+        shareIcon.sprite = GetOrCreateIcon("Share", ShareShape);
+        shareIcon.raycastTarget = false;
+        Place(shareIcon.rectTransform, Vector2.zero, new Vector2(78f, 78f));
 
         GameOverPanelController gameOverPanel = gameOverBg.gameObject.AddComponent<GameOverPanelController>();
         gameOverPanel.canvasGroup = gameOverGroup;
@@ -431,6 +441,7 @@ public static class TowerStackSceneBuilder
 
         UnityEventTools.AddPersistentListener(startButton.onClick, new UnityAction(gm.StartGame));
         UnityEventTools.AddPersistentListener(restartButton.onClick, new UnityAction(gm.RestartGame));
+        UnityEventTools.AddPersistentListener(shareButton.onClick, new UnityAction(gm.Share));
         UnityEventTools.AddPersistentListener(shopButton.onClick, new UnityAction(shop.Open));
         UnityEventTools.AddPersistentListener(missionsButton.onClick, new UnityAction(missionsPanel.Open));
 
@@ -1452,6 +1463,14 @@ public static class TowerStackSceneBuilder
         view.rewardText = rewardText;
         view.doneMark = done.gameObject;
         return view;
+    }
+
+    // Share symbol: three dots joined by two lines
+    private static bool ShareShape(Vector2 p)
+    {
+        Vector2 top = new Vector2(92f, 100f), left = new Vector2(34f, 64f), bottom = new Vector2(92f, 28f);
+        return Vector2.Distance(p, top) <= 17f || Vector2.Distance(p, left) <= 17f || Vector2.Distance(p, bottom) <= 17f
+            || DistanceToSegment(p, left, top) <= 6f || DistanceToSegment(p, left, bottom) <= 6f;
     }
 
     private static bool CheckShape(Vector2 p)

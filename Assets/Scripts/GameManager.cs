@@ -48,6 +48,7 @@ public class GameManager : MonoBehaviour
     private bool isGameOver = false;
     private bool isGameStarted = false;
     private Color titleColor;
+    private Texture2D shareImage;
 
     void Awake()
     {
@@ -129,11 +130,34 @@ public class GameManager : MonoBehaviour
         if (newBestBadge != null)
             newBestBadge.SetActive(score > highScoreAtStart);
 
+        Time.timeScale = 0f;
+        StartCoroutine(ShowGameOver(coinsEarned));
+    }
+
+    // Paylaşmak için önce kulenin (skor görünürken) ekran görüntüsü alınır, sonra oyun sonu kartı açılır
+    private IEnumerator ShowGameOver(int coinsEarned)
+    {
+        yield return new WaitForEndOfFrame();
+        if (shareImage != null)
+            Destroy(shareImage);
+        shareImage = ScreenCapture.CaptureScreenshotAsTexture();
+
         gameUIPanel.SetActive(false);
         gameOverPanel.Show();
-
-        Time.timeScale = 0f;
         StartCoroutine(CountCoins(coinsEarned));
+    }
+
+    public void Share()
+    {
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        string link = "https://play.google.com/store/apps/details?id=" + Application.identifier;
+        ShareService.Share(Localization.Format("share_text", tower != null ? tower.floors : score, link), shareImage);
+    }
+
+    void OnDestroy()
+    {
+        if (shareImage != null)
+            Destroy(shareImage);
     }
 
     public void RestartGame()

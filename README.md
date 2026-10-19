@@ -16,6 +16,7 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 - Saved best score and a "New best!" badge
 - Altitude zones: Clouds (25), High sky (50), Aurora (75), Space (100) and Moon (150) each give a celebration, a coin bonus and a change in the sky; a line around the tower marks your best floor and the start screen shows the next goal
 - Daily missions: three new missions every day (perfects, streaks, floors, element blocks, games, coins) with coin rewards and a bonus for finishing all three, plus a daily login reward that grows over a seven-day streak
+- Share: the game-over card shares a picture of your tower and your floor count to WhatsApp, Instagram and other apps (no extra plugin; on Android 9 and older the text alone is shared)
 - Coins: one per floor plus one per perfect, counted up on the game-over card and shown on the start screen
 - Coin shop: five block themes (Classic, Candy, Wood, Neon, Gold) and three sky themes (Day, Sunset, Space); element colours stay the same in every theme
 - Living skies: drifting clouds and passing birds by day, a glowing setting sun with light motes at sunset, twinkling stars, shooting stars, nebulae and a ringed planet in space; layers scroll at different speeds as the tower climbs
@@ -53,7 +54,7 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 ## Coming next
 
 - Element streaks: special powers when three blocks of the same element land in a row
-- Sharing and a Google Play leaderboard
+- A Google Play leaderboard and cloud save
 - Rewarded "continue" ads, occasional interstitials and a paid ad-free version
 - Google Play release first, App Store after that
 
