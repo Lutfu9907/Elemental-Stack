@@ -37,6 +37,7 @@ public class BackgroundGradient : MonoBehaviour
     private MaterialPropertyBlock props;
     private Color currentTop;
     private Color currentBottom;
+    private Palette[] defaultPalettes;   // "Gündüz" teması: Inspector'daki varsayılan döngü
 
     void Awake()
     {
@@ -48,11 +49,28 @@ public class BackgroundGradient : MonoBehaviour
         };
         props = new MaterialPropertyBlock();
 
-        if (palettes.Length > 0)
-        {
-            currentTop = palettes[0].top;
-            currentBottom = palettes[0].bottom;
-        }
+        defaultPalettes = palettes;
+        ApplySkyTheme();
+    }
+
+    void OnEnable()
+    {
+        SkinCatalog.SkinChanged += ApplySkyTheme;
+    }
+
+    void OnDisable()
+    {
+        SkinCatalog.SkinChanged -= ApplySkyTheme;
+    }
+
+    // Seçili gökyüzü temasının paletlerine geçer ve renkleri yumuşatmadan hemen uygular
+    private void ApplySkyTheme()
+    {
+        BackgroundGradient.Palette[] themed = SkinCatalog.CurrentSky.palettes;
+        palettes = themed != null && themed.Length > 0 ? themed : defaultPalettes;
+        if (palettes.Length == 0) return;
+
+        GetTargetColors(out currentTop, out currentBottom);
         UpdateTexture();
     }
 

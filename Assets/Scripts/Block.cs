@@ -16,6 +16,8 @@ public class Block : MonoBehaviour
 
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+    private static readonly int SmoothnessId = Shader.PropertyToID("_Smoothness");
+    private static readonly int MetallicId = Shader.PropertyToID("_Metallic");
     private MaterialPropertyBlock props;
 
     private void Awake()
@@ -27,6 +29,17 @@ public class Block : MonoBehaviour
     private void Start()
     {
         ApplyElementColor();
+    }
+
+    // Mağazada tema değişince kuledeki bloklar da hemen yeni temaya geçer
+    private void OnEnable()
+    {
+        SkinCatalog.SkinChanged += ApplyElementColor;
+    }
+
+    private void OnDisable()
+    {
+        SkinCatalog.SkinChanged -= ApplyElementColor;
     }
 
     // Element renkleri doygun ve canlı; elementsiz bloklar neredeyse renksiz.
@@ -45,25 +58,25 @@ public class Block : MonoBehaviour
 
     public void ApplyElementColor()
     {
-        if (elementType == BlockElementType.None && floor > 0)
-        {
-            // Elementsiz katlar krem, beyaz ve açık gri arasında çok hafif değişen sade tonlar alır
-            float hue = Mathf.Repeat(0.08f + floor * 0.11f, 1f);
-            float shade = floor % 2 == 0 ? 0.97f : 0.9f;
-            blockColor = Color.HSVToRGB(hue, 0.08f, shade);
-        }
-        else
-        {
+        // Elementsiz katlar ve taban seçili blok temasının renklerini alır; element renkleri sabit
+        Skin skin = SkinCatalog.CurrentBlock;
+        bool themed = elementType == BlockElementType.None;
+        if (!themed)
             blockColor = ElementColor(elementType);
-        }
+        else if (floor > 0)
+            blockColor = skin.plainColors[floor % skin.plainColors.Length];
+        else
+            blockColor = skin.baseColor;
 
         if (rend == null) return;
 
-        // Tek materyal paylaşılır; renk blok başına property block ile verilir
+        // Tek materyal paylaşılır; renk ve yüzey blok başına property block ile verilir
         if (props == null)
             props = new MaterialPropertyBlock();
         rend.GetPropertyBlock(props);
         props.SetColor(BaseColorId, blockColor);
+        props.SetFloat(SmoothnessId, themed ? skin.smoothness : 0.15f);
+        props.SetFloat(MetallicId, themed ? skin.metallic : 0f);
         rend.SetPropertyBlock(props);
     }
 

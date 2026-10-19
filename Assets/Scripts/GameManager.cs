@@ -17,6 +17,7 @@ public class GameManager : MonoBehaviour
     [Header("Start Screen")]
     public TextMeshProUGUI startBestText;
     public TextMeshProUGUI startCoinsText;
+    public TextMeshProUGUI titleText;
 
     [Header("Game Over")]
     public TextMeshProUGUI finalScoreText;
@@ -41,23 +42,28 @@ public class GameManager : MonoBehaviour
     private int highScoreAtStart = 0;
     private bool isGameOver = false;
     private bool isGameStarted = false;
+    private Color titleColor;
 
     void Awake()
     {
         highScore = PlayerData.BestScore;
         highScoreAtStart = highScore;
+        if (titleText != null)
+            titleColor = titleText.color;
     }
 
     void OnEnable()
     {
         Localization.LanguageChanged += RefreshTexts;
         PlayerData.CoinsChanged += RefreshTexts;
+        SkinCatalog.SkinChanged += RefreshTexts;
     }
 
     void OnDisable()
     {
         Localization.LanguageChanged -= RefreshTexts;
         PlayerData.CoinsChanged -= RefreshTexts;
+        SkinCatalog.SkinChanged -= RefreshTexts;
     }
 
     void Start()
@@ -163,6 +169,8 @@ public class GameManager : MonoBehaviour
         if (highScoreText != null) highScoreText.text = best;
         if (startBestText != null) startBestText.text = best;
         if (startCoinsText != null) startCoinsText.text = PlayerData.Coins.ToString("N0");
+        // Koyu gökyüzü temasında lacivert başlık okunmaz; beyaz yazılır
+        if (titleText != null) titleText.color = SkinCatalog.CurrentSky.darkSky ? Color.white : titleColor;
         if (finalScoreText != null) finalScoreText.text = score.ToString();
         if (finalBestText != null) finalBestText.text = best;
     }
