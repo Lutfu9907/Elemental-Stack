@@ -18,6 +18,7 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI startBestText;
     public TextMeshProUGUI startCoinsText;
     public TextMeshProUGUI titleText;
+    public TextMeshProUGUI nextGoalText;   // "Sıradaki hedef: Bulutlar · 25. kat"
 
     [Header("Game Over")]
     public TextMeshProUGUI finalScoreText;
@@ -36,6 +37,19 @@ public class GameManager : MonoBehaviour
     [Header("Other")]
     public FadeController fade;
     public TowerController tower;
+    public AltitudeTracker altitude;
+    public MissionTracker missions;
+    public DailyRewardPanel dailyReward;
+    public TextMeshProUGUI missionsButtonText;   // "Görevler 1/3"
+    public GameObject pausePanel;
+
+    [Header("Continue and rewards")]
+    public ContinuePanel continuePanel;
+    public GameObject doubleCoinsButton;
+    [Tooltip("Coin ile devam etmenin bedeli")]
+    public int continueCost = 100;
+    [Tooltip("Bu kattan önce ıskalayınca devam teklif edilmez")]
+    public int minFloorsForContinue = 5;
 
     private int score = 0;
     private int highScore = 0;
@@ -43,6 +57,10 @@ public class GameManager : MonoBehaviour
     private bool isGameOver = false;
     private bool isGameStarted = false;
     private Color titleColor;
+    private Texture2D shareImage;
+    private bool isPaused;
+    private bool continueUsed;
+    private int lastCoinsEarned;
 
     void Awake()
     {
@@ -73,6 +91,9 @@ public class GameManager : MonoBehaviour
         gameOverPanel.gameObject.SetActive(false);
 
         Time.timeScale = 0f;
+        PlayerData.RefreshDay();   // yeni günse giriş serisi ve görevler yenilenir
+        if (dailyReward != null)
+            dailyReward.ShowIfAvailable();
         RefreshTexts();
     }
 
@@ -90,6 +111,7 @@ public class GameManager : MonoBehaviour
 
         if (tower != null)
             tower.StartTower();
+        GameAnalytics.Event("game_start", ("games", PlayerData.GamesPlayed));
 
         RefreshTexts();
     }
@@ -110,28 +132,170 @@ public class GameManager : MonoBehaviour
         int floors = tower != null ? tower.floors : 0;
         int perfects = tower != null ? tower.perfectCount : 0;
         int coinsEarned = floors * coinsPerFloor + perfects * coinsPerPerfect;
+        if (altitude != null)
+            coinsEarned += altitude.BonusCoins;   // ulaşılan bölgelerin ödülü
         PlayerData.RecordGame(score, floors, perfects);
         PlayerData.AddCoins(coinsEarned);
+        if (missions != null)
+            missions.OnGameOver(coinsEarned);
+        GameAnalytics.Event("game_over", ("floors", floors), ("score", score), ("coins", coinsEarned), ("continued", continueUsed));
 
         RefreshTexts();
         if (newBestBadge != null)
             newBestBadge.SetActive(score > highScoreAtStart);
 
+        Time.timeScale = 0f;
+        StartCoroutine(ShowGameOver(coinsEarned));
+    }
+
+    // Paylaşmak için önce kulenin (skor görünürken) ekran görüntüsü alınır, sonra oyun sonu kartı açılır
+    private IEnumerator ShowGameOver(int coinsEarned)
+    {
+        yield return new WaitForEndOfFrame();
+        if (shareImage != null)
+            Destroy(shareImage);
+        shareImage = ScreenCapture.CaptureScreenshotAsTexture();
+
         gameUIPanel.SetActive(false);
         gameOverPanel.Show();
 
+        lastCoinsEarned = coinsEarned;
+        if (doubleCoinsButton != null)
+            doubleCoinsButton.SetActive(coinsEarned > 0 && AdsManager.Instance != null && AdsManager.Instance.RewardedReady);
+        StartCoroutine(CountCoins(0, coinsEarned, coinCountDelay));
+    }
+
+    public void Share()
+    {
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        string link = "https://play.google.com/store/apps/details?id=" + Application.identifier;
+        ShareService.Share(Localization.Format("share_text", tower != null ? tower.floors : score, link), shareImage);
+    }
+
+    void OnDestroy()
+    {
+        if (shareImage != null)
+            Destroy(shareImage);
+    }
+
+    // Duraklat: oyun durur, üstte "Devam / Ayarlar / Ana ekran" kartı çıkar
+    public void PauseGame()
+    {
+        if (!isGameStarted || isGameOver || isPaused) return;
+        isPaused = true;
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
         Time.timeScale = 0f;
-        StartCoroutine(CountCoins(coinsEarned));
+        if (pausePanel != null)
+            pausePanel.SetActive(true);
+    }
+
+    public void ResumeGame()
+    {
+        if (!isPaused) return;
+        isPaused = false;
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        if (pausePanel != null)
+            pausePanel.SetActive(false);
+        Time.timeScale = 1f;
+    }
+
+    // Telefon arka plana alınınca (arama, bildirim) oyun kendiliğinden duraklar
+    void OnApplicationPause(bool paused)
+    {
+        if (paused)
+            PauseGame();
     }
 
     public void RestartGame()
     {
         if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
-        Time.timeScale = 1f;
 
+        // Sırası geldiyse önce ara reklam, sonra yeni oyun
+        if (AdsManager.Instance != null)
+            AdsManager.Instance.OnGameFinished(ReloadScene);
+        else
+            ReloadScene();
+    }
+
+    private void ReloadScene()
+    {
+        Time.timeScale = 1f;
         fade.FadeIn(() =>
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        });
+    }
+
+    // ------------------------------------------------------------ devam et
+
+    // Blok ıskalanınca TowerController çağırır. Bu oyunda henüz devam edilmediyse ve
+    // reklam ya da yeterli coin varsa "Devam etmek ister misin?" sorulur; yoksa oyun biter.
+    public void OnTowerFailed()
+    {
+        if (isGameOver) return;
+
+        bool adReady = AdsManager.Instance != null && AdsManager.Instance.RewardedReady;
+        bool canPay = PlayerData.Coins >= continueCost;
+        bool worthIt = tower != null && tower.floors >= minFloorsForContinue;
+        if (!continueUsed && continuePanel != null && worthIt && (adReady || canPay))
+        {
+            Time.timeScale = 0f;
+            continuePanel.Show(this, continueCost, adReady, canPay);
+        }
+        else
+        {
+            GameOver();
+        }
+    }
+
+    public void ContinueWithAd()
+    {
+        AdsManager.Instance.ShowRewarded(earned =>
+        {
+            GameAnalytics.Event("continue_ad", ("watched", earned));
+            if (earned) Revive();
+            else DeclineContinue();
+        });
+    }
+
+    public void ContinueWithCoins()
+    {
+        if (PlayerData.SpendCoins(continueCost))
+        {
+            if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
+            GameAnalytics.Event("continue_coins", ("cost", continueCost));
+            Revive();
+        }
+    }
+
+    public void DeclineContinue()
+    {
+        if (continuePanel != null)
+            continuePanel.Hide();
+        GameOver();
+    }
+
+    private void Revive()
+    {
+        continueUsed = true;
+        if (continuePanel != null)
+            continuePanel.Hide();
+        Time.timeScale = 1f;
+        tower.Revive();
+    }
+
+    // Oyun sonu kartındaki "x2": reklam izlenirse bu oyunun coin'leri bir kez daha verilir
+    public void DoubleCoins()
+    {
+        if (doubleCoinsButton != null)
+            doubleCoinsButton.SetActive(false);
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        AdsManager.Instance.ShowRewarded(earned =>
+        {
+            GameAnalytics.Event("double_coins", ("watched", earned));
+            if (!earned) return;
+            PlayerData.AddCoins(lastCoinsEarned);
+            StartCoroutine(CountCoins(lastCoinsEarned, lastCoinsEarned * 2, 0f));
         });
     }
 
@@ -141,19 +305,19 @@ public class GameManager : MonoBehaviour
     }
 
     // Oyun sonu kartında kazanılan coin 0'dan yukarı sayılır; oyun durmuş olduğu için ölçeksiz zaman
-    private IEnumerator CountCoins(int earned)
+    private IEnumerator CountCoins(int from, int earned, float delay)
     {
         if (coinsEarnedText == null) yield break;
 
-        coinsEarnedText.text = "+0";
-        yield return new WaitForSecondsRealtime(coinCountDelay);
-        if (earned <= 0) yield break;
+        coinsEarnedText.text = "+" + from;
+        yield return new WaitForSecondsRealtime(delay);
+        if (earned <= from) yield break;
 
         if (AudioManager.Instance != null) AudioManager.Instance.PlayCoin();
         for (float t = 0f; t < coinCountDuration; t += Time.unscaledDeltaTime)
         {
             float eased = 1f - Mathf.Pow(1f - t / coinCountDuration, 2f);
-            coinsEarnedText.text = "+" + Mathf.RoundToInt(earned * eased);
+            coinsEarnedText.text = "+" + Mathf.RoundToInt(Mathf.Lerp(from, earned, eased));
             yield return null;
         }
         coinsEarnedText.text = "+" + earned;
@@ -171,6 +335,18 @@ public class GameManager : MonoBehaviour
         if (startCoinsText != null) startCoinsText.text = PlayerData.Coins.ToString("N0");
         // Koyu gökyüzü temasında lacivert başlık okunmaz; beyaz yazılır
         if (titleText != null) titleText.color = SkinCatalog.CurrentSky.darkSky ? Color.white : titleColor;
+
+        if (missionsButtonText != null)
+            missionsButtonText.text = Localization.Format("missions_button", MissionTracker.DoneCount(), PlayerData.MissionCount);
+
+        // Sıradaki yükseklik hedefi; hepsine ulaşıldıysa zirve
+        if (nextGoalText != null)
+        {
+            int next = AltitudeZones.NextIndex(PlayerData.BestFloor);
+            nextGoalText.text = next >= 0
+                ? Localization.Format("next_zone", AltitudeZones.Name(next), AltitudeZones.All[next].floor)
+                : Localization.Format("peak_zone", AltitudeZones.Name(AltitudeZones.All.Length - 1));
+        }
         if (finalScoreText != null) finalScoreText.text = score.ToString();
         if (finalBestText != null) finalBestText.text = best;
     }

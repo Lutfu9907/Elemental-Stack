@@ -23,8 +23,14 @@ public class ElementBanner : MonoBehaviour
         if (key == null) return;
 
         string color = ColorUtility.ToHtmlStringRGB(Block.ElementColor(element) * 0.8f);
-        label.text = Localization.Get("new_element") + " <color=#" + color + ">" + Localization.Get("element_" + key) + "</color>\n"
-                     + "<size=70%>" + Localization.Get("element_" + key + "_desc") + "</size>";
+        ShowText(Localization.Get("new_element") + " <color=#" + color + ">" + Localization.Get("element_" + key) + "</color>",
+                 Localization.Get("element_" + key + "_desc"));
+    }
+
+    // Genel kullanım: başlık ve altında küçük bir satır (yükseklik hedefi, yeni rekor...)
+    public void ShowText(string title, string subtitle)
+    {
+        label.text = string.IsNullOrEmpty(subtitle) ? title : title + "\n<size=70%>" + subtitle + "</size>";
 
         if (routine != null)
             StopCoroutine(routine);

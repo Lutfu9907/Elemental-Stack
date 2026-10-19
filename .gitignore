@@ -44,3 +44,6 @@ Thumbs.db
 
 # Visual Studio solution (Unity regenerates it)
 *.slnx
+
+# Editor share test images
+/[Ss]creenshots/
