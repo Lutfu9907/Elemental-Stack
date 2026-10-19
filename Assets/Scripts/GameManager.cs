@@ -41,6 +41,7 @@ public class GameManager : MonoBehaviour
     public MissionTracker missions;
     public DailyRewardPanel dailyReward;
     public TextMeshProUGUI missionsButtonText;   // "Görevler 1/3"
+    public GameObject pausePanel;
 
     private int score = 0;
     private int highScore = 0;
@@ -49,6 +50,7 @@ public class GameManager : MonoBehaviour
     private bool isGameStarted = false;
     private Color titleColor;
     private Texture2D shareImage;
+    private bool isPaused;
 
     void Awake()
     {
@@ -158,6 +160,34 @@ public class GameManager : MonoBehaviour
     {
         if (shareImage != null)
             Destroy(shareImage);
+    }
+
+    // Duraklat: oyun durur, üstte "Devam / Ayarlar / Ana ekran" kartı çıkar
+    public void PauseGame()
+    {
+        if (!isGameStarted || isGameOver || isPaused) return;
+        isPaused = true;
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        Time.timeScale = 0f;
+        if (pausePanel != null)
+            pausePanel.SetActive(true);
+    }
+
+    public void ResumeGame()
+    {
+        if (!isPaused) return;
+        isPaused = false;
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButton();
+        if (pausePanel != null)
+            pausePanel.SetActive(false);
+        Time.timeScale = 1f;
+    }
+
+    // Telefon arka plana alınınca (arama, bildirim) oyun kendiliğinden duraklar
+    void OnApplicationPause(bool paused)
+    {
+        if (paused)
+            PauseGame();
     }
 
     public void RestartGame()
