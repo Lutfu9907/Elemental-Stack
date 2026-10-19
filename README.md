@@ -17,6 +17,7 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 - Coins: one per floor plus one per perfect, counted up on the game-over card and shown on the start screen
 - Coin shop: five block themes (Classic, Candy, Wood, Neon, Gold) and three sky themes (Day, Sunset, Space); element colours stay the same in every theme
 - Living skies: drifting clouds and passing birds by day, a glowing setting sun with light motes at sunset, twinkling stars, shooting stars, nebulae and a ringed planet in space; layers scroll at different speeds as the tower climbs
+- Rich block themes: candy stripes with a sprinkle burst, wood grain with flying chips, neon blocks whose edges glow in changing colours with a neon ring on landing, and brushed gold with glittering dust and twinkles around the top of the tower; every theme has its own picture in the shop
 
 **Elements**
 

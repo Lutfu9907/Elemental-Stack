@@ -60,6 +60,8 @@ public static class TowerStackSceneBuilder
     private const string MusicIconPath = "Assets/UI/MusicNote.png";
     private const string CoinIconPath = "Assets/UI/Coin.png";
     private const string SkyArtFolder = "Assets/UI/Sky";
+    private const string ThemeArtFolder = "Assets/UI/Themes";
+    private const string PreviewFolder = "Assets/UI/Shop";
     private const string SkyDecorMaterialPath = MaterialsFolder + "/SkyDecor.mat";
     private const string SkyGlowMaterialPath = MaterialsFolder + "/SkyGlow.mat";
     private const float RoundedSpriteRadius = 64f;
@@ -166,6 +168,7 @@ public static class TowerStackSceneBuilder
         tower.iconMaterial = rippleMaterial;
         tower.frameMaterial = frameMaterial;
         CreateBloomVolume();
+        CreateSkinVisuals(frameMaterial, tower.transform.GetChild(0));
         CreateCamera(backgroundMaterial, tower);
 
         // ---------- UI ----------
@@ -858,6 +861,330 @@ public static class TowerStackSceneBuilder
     }
 
     // White eighth-note icon (head, stem and flag), drawn with 4x4 supersampling for smooth edges
+    // ----------------------------------------------------------- block themes
+
+    // Textures, placement effects and shop pictures for the block and sky themes
+    private static void CreateSkinVisuals(Material neonRingMaterial, Transform baseBlock)
+    {
+        var visuals = new GameObject("SkinVisuals").AddComponent<SkinVisuals>();
+        visuals.candyMap = GetOrCreateSurfaceTexture("Candy", CandyPixel);
+        visuals.woodMap = GetOrCreateSurfaceTexture("Wood", WoodPixel);
+        visuals.goldMap = GetOrCreateSurfaceTexture("Gold", GoldPixel);
+        visuals.neonEdgeMap = GetOrCreateSurfaceTexture("NeonEdges", NeonEdgePixel);
+        visuals.neonRingMaterial = neonRingMaterial;
+        visuals.initialTop = baseBlock;
+
+        Material particles = AssetDatabase.LoadAssetAtPath<Material>(ParticleMaterialPath);
+        Directory.CreateDirectory(EffectsFolder);
+
+        // Candy: a pop of colourful sprinkles
+        visuals.candyBurst = SaveEffect("CandyBurst", particles, ps =>
+        {
+            MakeBurst(ps, 26, 1.2f);
+            var main = ps.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 1.2f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.16f);
+            var colors = new Gradient();
+            colors.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(1f, 0.55f, 0.75f), 0f), new GradientColorKey(new Color(0.5f, 0.95f, 0.8f), 0.33f),
+                    new GradientColorKey(new Color(0.75f, 0.6f, 1f), 0.66f), new GradientColorKey(new Color(1f, 0.9f, 0.45f), 1f),
+                },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
+            main.startColor = new ParticleSystem.MinMaxGradient(colors) { mode = ParticleSystemGradientMode.RandomColor };
+            SetVelocity(ps, new Vector2(-2f, 2f), new Vector2(1.5f, 3.5f), new Vector2(-2f, 2f));
+        });
+
+        // Wood: a few brown chips
+        visuals.woodBurst = SaveEffect("WoodBurst", particles, ps =>
+        {
+            MakeBurst(ps, 16, 1.5f);
+            var main = ps.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.6f, 1f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.12f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.55f, 0.36f, 0.2f), new Color(0.82f, 0.62f, 0.4f));
+            SetVelocity(ps, new Vector2(-1.5f, 1.5f), new Vector2(0.8f, 2f), new Vector2(-1.5f, 1.5f));
+        });
+
+        // Gold: glittering dust that floats up
+        visuals.goldBurst = SaveEffect("GoldBurst", particles, ps =>
+        {
+            MakeBurst(ps, 30, -0.1f);
+            var main = ps.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 1.4f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.1f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.82f, 0.35f), new Color(1f, 0.95f, 0.7f));
+            SetVelocity(ps, new Vector2(-0.8f, 0.8f), new Vector2(0.3f, 1.2f), new Vector2(-0.8f, 0.8f));
+        });
+
+        // Gold: slow twinkles around the top of the tower while the Gold theme is on
+        visuals.goldSparkle = SaveEffect("GoldSparkle", particles, ps =>
+        {
+            var main = ps.main;
+            main.playOnAwake = false;
+            main.scalingMode = ParticleSystemScalingMode.Local;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.9f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.16f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.9f, 0.55f), Color.white);
+            var emission = ps.emission;
+            emission.rateOverTime = 7f;
+            var shape = ps.shape;
+            shape.scale = new Vector3(3.3f, 2.6f, 3.3f);
+            var size = ps.sizeOverLifetime;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+                new Keyframe(0f, 0f), new Keyframe(0.5f, 1f), new Keyframe(1f, 0f)));
+        });
+
+        // Shop pictures
+        var ids = new List<string>();
+        var sprites = new List<Sprite>();
+        foreach (Skin skin in SkinCatalog.All)
+        {
+            Skin captured = skin;
+            Sprite picture = skin.type == SkinType.Block
+                ? GetOrCreatePreview(skin.id, p => BlockPreviewPixel(p, captured))
+                : GetOrCreatePreview(skin.id, p => SkyPreviewPixel(p, captured));
+            ids.Add(skin.id);
+            sprites.Add(picture);
+        }
+        visuals.previewIds = ids.ToArray();
+        visuals.previewSprites = sprites.ToArray();
+    }
+
+    // One-shot burst from the block's volume that removes itself when done
+    private static void MakeBurst(ParticleSystem ps, short count, float gravity)
+    {
+        var main = ps.main;
+        main.loop = false;
+        main.duration = 1f;
+        main.gravityModifier = gravity;
+        main.stopAction = ParticleSystemStopAction.Destroy;
+        var emission = ps.emission;
+        emission.rateOverTime = 0f;
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, count) });
+    }
+
+    // 128 px block surface texture. Colours multiply the theme colour, so mostly white/grey.
+    private static Texture2D GetOrCreateSurfaceTexture(string name, System.Func<Vector2, Color> pixel)
+    {
+        string path = ThemeArtFolder + "/" + name + ".png";
+        var existing = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        if (existing != null)
+            return existing;
+
+        const int size = 128;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        var pixels = new Color32[size * size];
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+                pixels[y * size + x] = pixel(new Vector2((x + 0.5f) / size, (y + 0.5f) / size));
+        texture.SetPixels32(pixels);
+        Directory.CreateDirectory(ThemeArtFolder);
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(path);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+        importer.textureType = TextureImporterType.Default;
+        importer.mipmapEnabled = true;
+        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.filterMode = FilterMode.Bilinear;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    // Candy: soft vertical stripes (stay straight on squat block sides too)
+    private static Color CandyPixel(Vector2 uv)
+    {
+        float stripe = Mathf.SmoothStep(0f, 1f, Mathf.Abs(Mathf.Repeat(uv.x * 6f, 1f) - 0.5f) * 4f - 0.6f);
+        float v = Mathf.Lerp(1f, 0.8f, stripe);
+        return new Color(v, v, v, 1f);
+    }
+
+    // Wood: wavy horizontal grain with fine noise
+    private static Color WoodPixel(Vector2 uv)
+    {
+        float warp = Mathf.PerlinNoise(uv.x * 3f, uv.y * 6f) * 2.2f;
+        float grain = Mathf.Sin((uv.y * 22f + warp) * Mathf.PI);
+        float fine = Mathf.PerlinNoise(uv.x * 40f, uv.y * 4f) * 0.08f;
+        float v = 0.84f + 0.1f * grain - fine;
+        return new Color(v, v * 0.97f, v * 0.94f, 1f);
+    }
+
+    // Gold: brushed metal streaks and a soft diagonal sheen
+    private static Color GoldPixel(Vector2 uv)
+    {
+        float brushed = Mathf.PerlinNoise(uv.x * 60f, uv.y * 2f) * 0.1f;
+        float sheen = Mathf.Exp(-Mathf.Pow((uv.x - uv.y) * 3f, 2f)) * 0.12f;
+        float v = Mathf.Clamp01(0.88f + sheen - brushed);
+        return new Color(v, v, v, 1f);
+    }
+
+    // Neon: bright rims along every face edge, a faint glow across the face
+    private static Color NeonEdgePixel(Vector2 uv)
+    {
+        float edge = Mathf.Min(Mathf.Min(uv.x, 1f - uv.x), Mathf.Min(uv.y, 1f - uv.y));
+        float rim = Mathf.Pow(Mathf.Clamp01(1f - edge / 0.07f), 2f);
+        float v = Mathf.Clamp01(rim + 0.05f);
+        return new Color(v, v, v, 1f);
+    }
+
+    // 192 x 144 shop picture with rounded corners
+    private static Sprite GetOrCreatePreview(string id, System.Func<Vector2, Color> pixel)
+    {
+        string path = PreviewFolder + "/" + id + ".png";
+        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        if (existing != null)
+            return existing;
+
+        const int width = 192, height = 144, samples = 2;
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        var pixels = new Color32[width * height];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                Color colorSum = Color.clear;
+                float alphaSum = 0f;
+                for (int sy = 0; sy < samples; sy++)
+                {
+                    for (int sx = 0; sx < samples; sx++)
+                    {
+                        Color c = pixel(new Vector2(x + (sx + 0.5f) / samples, y + (sy + 0.5f) / samples));
+                        colorSum += c * c.a;
+                        alphaSum += c.a;
+                    }
+                }
+                Color result = alphaSum > 0f ? colorSum / alphaSum : Color.clear;
+                result.a = alphaSum / (samples * samples);
+                pixels[y * width + x] = result;
+            }
+        }
+        texture.SetPixels32(pixels);
+        Directory.CreateDirectory(PreviewFolder);
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(path);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = false;
+        importer.alphaIsTransparency = true;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+    }
+
+    // A small isometric stack of three blocks in the theme's colours and surface
+    private static Color BlockPreviewPixel(Vector2 p, Skin skin)
+    {
+        const float halfWidth = 54f, depth = 27f, thickness = 17f;
+        Color[] colors = { skin.plainColors[0], skin.plainColors[1], skin.baseColor };
+        // Top slab first so it covers the ones below
+        for (int i = 0; i < 3; i++)
+        {
+            float cy = 104f - i * thickness;
+            Vector2 c = new Vector2(96f, cy);
+            Vector2 top = c + new Vector2(0f, depth), right = c + new Vector2(halfWidth, 0f);
+            Vector2 bottom = c + new Vector2(0f, -depth), left = c + new Vector2(-halfWidth, 0f);
+            Vector2 down = new Vector2(0f, -thickness);
+
+            Vector2[] topFace = { top, right, bottom, left };
+            Vector2[] leftFace = { left, bottom, bottom + down, left + down };
+            Vector2[] rightFace = { bottom, right, right + down, bottom + down };
+
+            if (InsidePolygon(p, topFace)) return ThemedFace(skin, colors[i], 1f, p, topFace, (p.x - left.x) / (2f * halfWidth), (p.y - bottom.y) / (2f * depth), 2 - i);
+            if (InsidePolygon(p, leftFace)) return ThemedFace(skin, colors[i], 0.72f, p, leftFace, (p.x - left.x) / halfWidth, (p.y - (bottom + down).y) / thickness, 2 - i);
+            if (InsidePolygon(p, rightFace)) return ThemedFace(skin, colors[i], 0.86f, p, rightFace, (p.x - bottom.x) / halfWidth, (p.y - (bottom + down).y) / thickness, 2 - i);
+        }
+        return Color.clear;
+    }
+
+    // One face of a preview block: colour, light and the theme's pattern
+    private static Color ThemedFace(Skin skin, Color color, float light, Vector2 p, Vector2[] face, float u, float v, int floor)
+    {
+        Color c = color * light;
+        switch (skin.id)
+        {
+            case "candy":
+                c *= CandyPixel(new Vector2(u, v)).r;
+                break;
+            case "wood":
+                c *= WoodPixel(new Vector2(u * 0.5f, v * 0.3f + floor * 0.2f)).r;
+                break;
+            case "gold":
+                c *= GoldPixel(new Vector2(u, v)).r + 0.1f;
+                break;
+            case "neon":
+                float edge = float.MaxValue;
+                for (int i = 0; i < face.Length; i++)
+                    edge = Mathf.Min(edge, DistanceToSegment(p, face[i], face[(i + 1) % face.Length]));
+                if (edge < 2.4f && skin.emissionColors != null)
+                    c = Color.Lerp(skin.emissionColors[floor % skin.emissionColors.Length], Color.white, 0.25f);
+                break;
+        }
+        c.a = 1f;
+        return c;
+    }
+
+    // Sky theme picture: its gradient, plus clouds, a setting sun or stars and a planet
+    private static Color SkyPreviewPixel(Vector2 p, Skin skin)
+    {
+        const float width = 192f, height = 144f, radius = 20f;
+        // Rounded corners
+        Vector2 corner = new Vector2(Mathf.Clamp(p.x, radius, width - radius), Mathf.Clamp(p.y, radius, height - radius));
+        if (Vector2.Distance(p, corner) > radius) return Color.clear;
+
+        Color top = skin.palettes != null ? skin.palettes[0].top : new Color(0.33f, 0.62f, 0.95f);
+        Color bottom = skin.palettes != null ? skin.palettes[0].bottom : new Color(0.82f, 0.93f, 1f);
+        Color c = Color.Lerp(bottom, top, p.y / height);
+
+        switch (skin.id)
+        {
+            case "sunset":
+            {
+                float d = Vector2.Distance(p, new Vector2(62f, 58f));
+                c = Color.Lerp(c, new Color(1f, 0.75f, 0.45f), Mathf.Pow(Mathf.Clamp01(1f - d / 60f), 2f) * 0.8f);
+                if (d < 18f) c = new Color(1f, 0.9f, 0.65f);
+                c = Overlay(c, CloudPixel((p - new Vector2(120f, 92f)) / new Vector2(0.55f, 0.12f) + new Vector2(128f, 64f)), new Color(1f, 0.72f, 0.68f), 0.7f);
+                c = Overlay(c, CloudPixel((p - new Vector2(70f, 34f)) / new Vector2(0.6f, 0.1f) + new Vector2(128f, 64f)), new Color(1f, 0.7f, 0.65f), 0.7f);
+                break;
+            }
+            case "space":
+            {
+                for (int i = 0; i < 40; i++)
+                {
+                    Vector2 star = new Vector2(Hash(i * 2) * width, Hash(i * 2 + 1) * height);
+                    float r = 0.7f + Hash(i + 100) * 1.1f;
+                    if (Vector2.Distance(p, star) < r) c = Color.Lerp(c, Color.white, 0.9f);
+                }
+                Color planet = PlanetPixel((p - new Vector2(128f, 88f)) / 0.38f + new Vector2(128f, 128f));
+                c = Color.Lerp(c, planet, planet.a);
+                break;
+            }
+            default:
+            {
+                c = Overlay(c, CloudPixel((p - new Vector2(62f, 92f)) / 0.32f + new Vector2(128f, 64f)), Color.white, 0.95f);
+                c = Overlay(c, CloudPixel((p - new Vector2(138f, 54f)) / 0.42f + new Vector2(128f, 64f)), Color.white, 0.95f);
+                break;
+            }
+        }
+        c.a = 1f;
+        return c;
+    }
+
+    private static Color Overlay(Color under, Color shape, Color tint, float strength)
+    {
+        return Color.Lerp(under, tint * shape.r, shape.a * strength);
+    }
+
+    // Deterministic 0..1 noise for placing stars
+    private static float Hash(int n)
+    {
+        return Mathf.Repeat(Mathf.Sin(n * 12.9898f) * 43758.5453f, 1f);
+    }
+
     // ------------------------------------------------------------ sky art
 
     // Draws a sprite pixel by pixel. `pixel` returns a colour with alpha for a point given in
@@ -1072,11 +1399,17 @@ public static class TowerStackSceneBuilder
             Place(swatches[i].rectTransform, new Vector2(0f, 78f - i * 32f), new Vector2(150f, 28f));
         }
 
+        // Picture of the theme (drawn by the builder); the stripes above are only a fallback
+        Image preview = CreateImage("Preview", item.transform, Color.white);
+        preview.raycastTarget = false;
+        preview.preserveAspect = true;
+        Place(preview.rectTransform, new Vector2(0f, 58f), new Vector2(176f, 132f));
+
         TextMeshProUGUI nameText = CreateText("Name", item.transform, "Classic", 38, Navy, TextAlignmentOptions.Center);
         nameText.enableAutoSizing = true;
         nameText.fontSizeMax = 38f;
         nameText.fontSizeMin = 24f;
-        Place(nameText.rectTransform, new Vector2(0f, -45f), new Vector2(230f, 50f));
+        Place(nameText.rectTransform, new Vector2(0f, -50f), new Vector2(230f, 50f));
 
         RectTransform priceRow = CreateCoinRow("Price", item.transform, coinIcon, "300", 36, CoinText, out TextMeshProUGUI priceText);
         Place(priceRow, new Vector2(0f, -100f), new Vector2(230f, 50f));
@@ -1086,6 +1419,7 @@ public static class TowerStackSceneBuilder
 
         ShopItemView view = item.gameObject.AddComponent<ShopItemView>();
         view.background = item;
+        view.preview = preview;
         view.swatches = swatches;
         view.nameText = nameText;
         view.priceRow = priceRow.gameObject;
