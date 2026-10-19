@@ -22,6 +22,16 @@ public class TowerController : MonoBehaviour
     public GameObject windEffect;
     public GameObject electricEffect;
     public ElementBanner elementBanner;
+    [Tooltip("Kayan element bloğunun üstünde süzülen simgeler ve arkalarındaki beyaz rozet")]
+    public Sprite fireIcon;
+    public Sprite iceIcon;
+    public Sprite windIcon;
+    public Sprite electricIcon;
+    public Sprite iconBadge;
+    [Tooltip("Simgeler için ışıksız, saydam materyal")]
+    public Material iconMaterial;
+    [Tooltip("Element çerçevesi için parlayan (bloom) materyal")]
+    public Material frameMaterial;
     [Tooltip("Kesilen parça bloğun bu oranından büyükse yerleştirme \"kötü\" sayılır (yardım eli için)")]
     public float badCutFraction = 0.25f;
     [Tooltip("Blok tabanın bu oranından küçüldüyse oyuncu zorlanıyor sayılır")]
@@ -60,6 +70,7 @@ public class TowerController : MonoBehaviour
     private Block.BlockElementType currentElement = Block.BlockElementType.None;
     private float currentBlockAge;
     private GameObject currentEffect;
+    private ElementVisual currentVisual;
     private int badPlacementsInRow;
 
     void Start()
@@ -156,6 +167,10 @@ public class TowerController : MonoBehaviour
         GameObject effectPrefab = EffectFor(currentElement);
         currentEffect = effectPrefab != null ? Instantiate(effectPrefab, go.transform, false) : null;
 
+        // ...ve parlar, etrafında çerçeve, üstünde simgesi olur
+        if (currentElement != Block.BlockElementType.None && blockScript != null)
+            currentVisual = ElementVisual.Attach(blockScript, IconFor(currentElement), iconBadge, iconMaterial, frameMaterial);
+
         if (isIntroduction && elementBanner != null)
             elementBanner.Show(currentElement);
 
@@ -169,7 +184,13 @@ public class TowerController : MonoBehaviour
     {
         Transform block = currentBlock;
         currentBlock = null;
-        StopCurrentEffect();
+        Block.BlockElementType placedElement = currentElement;
+        StopCurrentEffect(true);
+        if (currentVisual != null)
+        {
+            currentVisual.Placed();
+            currentVisual = null;
+        }
 
         float delta = AxisValue(block.position) - AxisValue(topBlock.position);
         float topSize = AxisValue(topScale);
@@ -241,6 +262,14 @@ public class TowerController : MonoBehaviour
         }
 
         AudioManager.Instance.PlaySound(AudioManager.Instance.placeBlockSound);
+
+        // Element bloğu yerleşince kendi renginde bir halka açılır
+        if (placedElement != Block.BlockElementType.None)
+        {
+            Color ring = Color.Lerp(Block.ElementColor(placedElement), Color.white, 0.25f);
+            Vector3 ringCenter = new Vector3(pos.x, pos.y - blockHeight * 0.5f + 0.01f, pos.z);
+            PerfectRipple.Spawn(ringCenter, new Vector2(scale.x, scale.z), rippleMaterial, ring, 0.05f);
+        }
 
         block.SetParent(transform, true);
         topBlock = block;
@@ -332,12 +361,29 @@ public class TowerController : MonoBehaviour
         }
     }
 
-    // Blok yerleşince parçacıklar kesilir; havadakiler kendi ömrünü tamamlayıp kaybolur
-    private void StopCurrentEffect()
+    private Sprite IconFor(Block.BlockElementType element)
+    {
+        switch (element)
+        {
+            case Block.BlockElementType.Fire: return fireIcon;
+            case Block.BlockElementType.Ice: return iceIcon;
+            case Block.BlockElementType.Wind: return windIcon;
+            case Block.BlockElementType.Electric: return electricIcon;
+            default: return null;
+        }
+    }
+
+    // Blok yerleşince parçacıklar kesilir (istenirse son bir patlama yapar);
+    // havadakiler kendi ömrünü tamamlayıp kaybolur
+    private void StopCurrentEffect(bool burst = false)
     {
         if (currentEffect == null) return;
         foreach (ParticleSystem ps in currentEffect.GetComponentsInChildren<ParticleSystem>())
+        {
+            if (burst)
+                ps.Emit(24);
             ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+        }
         Destroy(currentEffect, 2f);
         currentEffect = null;
     }
