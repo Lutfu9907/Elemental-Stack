@@ -37,13 +37,14 @@ public static class TowerStackSceneBuilder
     private static readonly Color AccentColor = new Color(1f, 0.78f, 0.25f);
 
     // UI style A
-    private const string FontFolder = "Assets/Fonts/Fredoka";
-    private const string FontPath = FontFolder + "/Fredoka-SemiBold-Latin.ttf";
-    private const string FontExtPath = FontFolder + "/Fredoka-SemiBold-LatinExt.ttf";
-    private const string FontAssetPath = FontFolder + "/Fredoka SDF.asset";
-    private const string FontExtAssetPath = FontFolder + "/Fredoka Ext SDF.asset";
-    private const string OutlineMaterialPath = FontFolder + "/Fredoka SDF Outline.mat";
+    private const string FontFolder = "Assets/Fonts/Baloo2";
+    private const string FontPath = FontFolder + "/Baloo2-ExtraBold-Latin.ttf";
+    private const string FontExtPath = FontFolder + "/Baloo2-ExtraBold-LatinExt.ttf";
+    private const string FontAssetPath = FontFolder + "/Baloo2 SDF.asset";
+    private const string FontExtAssetPath = FontFolder + "/Baloo2 Ext SDF.asset";
+    private const string OutlineMaterialPath = FontFolder + "/Baloo2 SDF Outline.mat";
     private const string RoundedSpritePath = "Assets/UI/Rounded.png";
+    private const string MusicIconPath = "Assets/UI/MusicNote.png";
     private const float RoundedSpriteRadius = 64f;
 
     private static readonly Color Navy = new Color(0.137f, 0.224f, 0.357f);
@@ -81,7 +82,7 @@ public static class TowerStackSceneBuilder
         SoundSynth.Clips sounds = SoundSynth.GenerateAll();
         GameObject blockPrefab = CreateBlockPrefab(blockMaterial);
 
-        // UI style A: Fredoka font, rounded pills, navy text on a pastel sky
+        // UI style A: Baloo 2 font, rounded pills, navy text on a pastel sky
         uiFont = SetupFont();
         outlineMaterial = CreateOutlineMaterial(uiFont);
         roundedSprite = GetOrCreateRoundedSprite();
@@ -138,8 +139,28 @@ public static class TowerStackSceneBuilder
         languagePill.gameObject.AddComponent<LanguageButton>();
         CreatePillLabel(languagePill, "EN", 42, Navy, "language");
 
-        TextMeshProUGUI title = CreateText("Title", startContent, "Tower\nStack", 200, Navy, TextAlignmentOptions.Center);
-        title.lineSpacing = -25f;
+        // Music on/off, top-left: a note icon, crossed out while the music is off
+        Image musicPill = CreateRounded("MusicButton", startContent, Color.white, 46f);
+        RectTransform musicRt = musicPill.rectTransform;
+        musicRt.anchorMin = musicRt.anchorMax = musicRt.pivot = new Vector2(0f, 1f);
+        musicRt.anchoredPosition = new Vector2(48f, -70f);
+        musicRt.sizeDelta = new Vector2(92f, 92f);
+        musicPill.gameObject.AddComponent<Button>().targetGraphic = musicPill;
+        Image noteIcon = CreateImage("Icon", musicPill.transform, Navy);
+        noteIcon.sprite = GetOrCreateMusicIcon();
+        noteIcon.raycastTarget = false;
+        Place(noteIcon.rectTransform, Vector2.zero, new Vector2(58f, 58f));
+        Image slash = CreateImage("MutedSlash", musicPill.transform, Coral);
+        slash.raycastTarget = false;
+        Place(slash.rectTransform, Vector2.zero, new Vector2(9f, 78f));
+        slash.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        musicPill.gameObject.AddComponent<MusicButton>().mutedSlash = slash.gameObject;
+
+        TextMeshProUGUI title = CreateText("Title", startContent, "Elemental\nStack", 180, Navy, TextAlignmentOptions.Center);
+        title.lineSpacing = -45f;
+        title.enableAutoSizing = true;
+        title.fontSizeMax = 180f;
+        title.fontSizeMin = 110f;
         title.gameObject.AddComponent<LocalizedText>().key = "title";
         Place(title.rectTransform, new Vector2(0f, 500f), new Vector2(1000f, 480f));
 
@@ -217,6 +238,8 @@ public static class TowerStackSceneBuilder
         audio.perfectSound = sounds.perfect;
         audio.gameOverSound = sounds.gameOver;
         audio.buttonClickSound = sounds.button;
+        audio.introJingle = sounds.introJingle;
+        audio.musicLoop = sounds.music;
 
         var comboGo = new GameObject("ComboEffectManager");
         ComboEffectManager combo = comboGo.AddComponent<ComboEffectManager>();
@@ -577,6 +600,79 @@ public static class TowerStackSceneBuilder
         return label;
     }
 
+    // White eighth-note icon (head, stem and flag), drawn with 4x4 supersampling for smooth edges
+    private static Sprite GetOrCreateMusicIcon()
+    {
+        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(MusicIconPath);
+        if (existing != null)
+            return existing;
+
+        const int size = 128;
+        const int samples = 4;
+        // Flag: a quadratic curve leaving the top of the stem
+        Vector2 p0 = new Vector2(70f, 112f), p1 = new Vector2(104f, 100f), p2 = new Vector2(98f, 64f);
+        var flag = new Vector2[17];
+        for (int i = 0; i < flag.Length; i++)
+        {
+            float t = i / (flag.Length - 1f);
+            flag[i] = (1 - t) * (1 - t) * p0 + 2 * (1 - t) * t * p1 + t * t * p2;
+        }
+
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        var pixels = new Color32[size * size];
+        float cos = Mathf.Cos(-20f * Mathf.Deg2Rad), sin = Mathf.Sin(-20f * Mathf.Deg2Rad);
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                int hits = 0;
+                for (int sy = 0; sy < samples; sy++)
+                {
+                    for (int sx = 0; sx < samples; sx++)
+                    {
+                        float px = x + (sx + 0.5f) / samples;
+                        float py = y + (sy + 0.5f) / samples;
+
+                        // Tilted oval note head
+                        float dx = px - 48f, dy = py - 34f;
+                        float rx = dx * cos - dy * sin, ry = dx * sin + dy * cos;
+                        bool head = (rx * rx) / (25f * 25f) + (ry * ry) / (17f * 17f) <= 1f;
+                        bool stem = px >= 64f && px <= 73f && py >= 34f && py <= 114f;
+                        bool flagHit = false;
+                        for (int i = 0; i < flag.Length - 1 && !flagHit; i++)
+                        {
+                            float thickness = Mathf.Lerp(8f, 3f, i / (flag.Length - 2f));
+                            flagHit = DistanceToSegment(new Vector2(px, py), flag[i], flag[i + 1]) <= thickness;
+                        }
+                        if (head || stem || flagHit) hits++;
+                    }
+                }
+                byte alpha = (byte)(255 * hits / (samples * samples));
+                pixels[y * size + x] = new Color32(255, 255, 255, alpha);
+            }
+        }
+        texture.SetPixels32(pixels);
+        Directory.CreateDirectory(Path.GetDirectoryName(MusicIconPath));
+        File.WriteAllBytes(MusicIconPath, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(MusicIconPath);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(MusicIconPath);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = false;
+        importer.alphaIsTransparency = true;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(MusicIconPath);
+    }
+
+    private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 ab = b - a;
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
+        return Vector2.Distance(p, a + ab * t);
+    }
+
     private static void UseOutline(TextMeshProUGUI text)
     {
         if (outlineMaterial != null)
@@ -591,6 +687,8 @@ public static class TowerStackSceneBuilder
 
     private static void ApplyMobilePlayerSettings()
     {
+        PlayerSettings.productName = "Elemental Stack";
+
         // Portrait only: the tower is built for a tall phone screen.
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
         PlayerSettings.allowedAutorotateToPortrait = true;
@@ -697,7 +795,7 @@ public static class TowerStackSceneBuilder
         tmp.raycastTarget = false;
         if (uiFont != null)
         {
-            // Fredoka file is already SemiBold; synthetic bold on top would look smeared
+            // Baloo 2 file is already ExtraBold; synthetic bold on top would look smeared
             tmp.font = uiFont;
             tmp.fontStyle = FontStyles.Normal;
         }

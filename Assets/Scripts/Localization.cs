@@ -13,7 +13,7 @@ public static class Localization
     // Anahtar → { İngilizce, Türkçe }
     private static readonly Dictionary<string, string[]> Table = new Dictionary<string, string[]>
     {
-        { "title",        new[] { "Tower\nStack", "Tower\nStack" } },
+        { "title",        new[] { "Elemental\nStack", "Elemental\nStack" } },
         { "tap_to_start", new[] { "Tap to start", "Başlamak için dokun" } },
         { "best",         new[] { "Best: {0}", "En iyi: {0}" } },
         { "best_label",   new[] { "Best", "En iyi" } },
