@@ -261,23 +261,24 @@ public static class TowerStackSceneBuilder
         startButton.transition = Selectable.Transition.None;
         RectTransform startContent = CreateSafeArea(startPanel.transform);
 
-        Image bestPill = CreateRounded("BestPill", startContent, Color.white, 46f);
-        bestPill.raycastTarget = false;
-        AnchorTop(bestPill.rectTransform, new Vector2(0f, -70f), new Vector2(520f, 92f));   // wide enough for "En yüksek skor: 128"
-        TextMeshProUGUI startBestText = CreatePillLabel(bestPill, "Best: 0", 44, Navy, null);
+        // Best score and total coins share one pill at the top: "Best: 56 | (coin) 2,780"
+        Image statsPill = CreateRounded("StatsPill", startContent, Color.white, 46f);
+        statsPill.raycastTarget = false;
+        AnchorTop(statsPill.rectTransform, new Vector2(0f, -70f), new Vector2(600f, 92f));
+        TextMeshProUGUI startBestText = CreatePillLabel(statsPill, "Best: 0", 40, Navy, null);
+        Place(startBestText.rectTransform, new Vector2(-105f, 0f), new Vector2(370f, 92f));
+        startBestText.margin = new Vector4(22f, 0f, 8f, 0f);
+        Image statsDivider = CreateImage("Divider", statsPill.transform, new Color(Navy.r, Navy.g, Navy.b, 0.2f));
+        statsDivider.raycastTarget = false;
+        Place(statsDivider.rectTransform, new Vector2(85f, 0f), new Vector2(3f, 50f));
+        RectTransform startCoinRow = CreateCoinRow("Coins", statsPill.transform, GetOrCreateCoinIcon(), "0", 40, Navy, out TextMeshProUGUI startCoinsText);
+        Place(startCoinRow, new Vector2(190f, 0f), new Vector2(190f, 92f));
+        MakeSkyAware(statsPill, startBestText, statsDivider, startCoinsText);
 
-        // Total coins, under the best score
-        Image coinPill = CreateRounded("CoinPill", startContent, Color.white, 40f);
-        coinPill.raycastTarget = false;
-        AnchorTop(coinPill.rectTransform, new Vector2(0f, -178f), new Vector2(300f, 80f));
-        RectTransform startCoinRow = CreateCoinRow("Coins", coinPill.transform, GetOrCreateCoinIcon(), "0", 42, Navy, out TextMeshProUGUI startCoinsText);
-        Stretch(startCoinRow);
-
-        // Next altitude goal, e.g. "Next: Clouds · floor 25"
-        Image goalPill = CreateRounded("NextGoal", startContent, Color.white, 34f);
-        goalPill.raycastTarget = false;
-        AnchorTop(goalPill.rectTransform, new Vector2(0f, -272f), new Vector2(560f, 68f));
-        TextMeshProUGUI nextGoalText = CreatePillLabel(goalPill, "Next: Clouds · floor 25", 34, MutedNavy, null);
+        // Next altitude goal as plain outlined text, e.g. "Next: Clouds · floor 25"
+        TextMeshProUGUI nextGoalText = CreateText("NextGoal", startContent, "Next: Clouds · floor 25", 34, Color.white, TextAlignmentOptions.Center);
+        UseOutline(nextGoalText);
+        AnchorTop(nextGoalText.rectTransform, new Vector2(0f, -172f), new Vector2(760f, 60f));
 
         // Language switch (EN / TR); its own button, so tapping it never starts the game
         Image languagePill = CreateRounded("LanguageButton", startContent, Color.white, 46f);
@@ -287,10 +288,12 @@ public static class TowerStackSceneBuilder
         languageRt.sizeDelta = new Vector2(170f, 92f);
         languagePill.gameObject.AddComponent<Button>().targetGraphic = languagePill;
         languagePill.gameObject.AddComponent<LanguageButton>();
-        CreatePillLabel(languagePill, "EN", 42, Navy, "language");
+        TextMeshProUGUI languageLabel = CreatePillLabel(languagePill, "EN", 42, Navy, "language");
+        MakeSkyAware(languagePill, languageLabel);
 
         // Settings, top-left: a gear icon (music, sound, vibration, graphics, language, privacy)
         Button settingsButton = CreateIconButton("SettingsButton", startContent, GetOrCreateIcon("Gear", GearShape), new Vector2(0f, 1f), new Vector2(48f, -70f));
+        MakeSkyAware(settingsButton.GetComponent<Image>(), settingsButton.transform.Find("Icon").GetComponent<Image>());
 
         TextMeshProUGUI title = CreateText("Title", startContent, "Elemental\nStack", 180, Navy, TextAlignmentOptions.Center);
         title.lineSpacing = -45f;
@@ -310,28 +313,15 @@ public static class TowerStackSceneBuilder
         CreatePillLabel(tapHint, "Tap to start", 58, YellowText, "tap_to_start");
         tapHint.gameObject.AddComponent<PulseScale>();
 
-        // Shop button above the tap hint; it is its own button, so it never starts the game
-        Image shopPill = CreateRounded("ShopButton", startContent, Color.white, 55f);
-        RectTransform shopRt = shopPill.rectTransform;
-        shopRt.anchorMin = shopRt.anchorMax = shopRt.pivot = new Vector2(0.5f, 0f);
-        shopRt.anchoredPosition = new Vector2(-190f, 360f);
-        shopRt.sizeDelta = new Vector2(340f, 110f);
-        Button shopButton = shopPill.gameObject.AddComponent<Button>();
-        shopButton.targetGraphic = shopPill;
-        CreatePillLabel(shopPill, "Shop", 50, Navy, "shop");
-
-        // Missions button next to it; its label ("Missions 1/3") is filled in by GameManager
-        Image missionsPill = CreateRounded("MissionsButton", startContent, Color.white, 55f);
-        RectTransform missionsRt = missionsPill.rectTransform;
-        missionsRt.anchorMin = missionsRt.anchorMax = missionsRt.pivot = new Vector2(0.5f, 0f);
-        missionsRt.anchoredPosition = new Vector2(190f, 360f);
-        missionsRt.sizeDelta = new Vector2(340f, 110f);
-        Button missionsButton = missionsPill.gameObject.AddComponent<Button>();
-        missionsButton.targetGraphic = missionsPill;
-        TextMeshProUGUI missionsButtonText = CreatePillLabel(missionsPill, "Missions 0/3", 46, Navy, null);
+        // Shop, Elements and Missions above the tap hint: lighter than the yellow start button, each with an icon.
+        // They are their own buttons, so tapping them never starts the game. "Missions 1/3" is filled in by GameManager.
+        Button shopButton = CreateMenuButton("ShopButton", startContent, -330f, GetOrCreateIcon("Bag", BagShape), "Shop", "shop", out _);
+        Button elementsButton = CreateMenuButton("ElementsButton", startContent, 0f, GetOrCreateIcon("Sparkle", SparkleShape), "Elements", "elements", out _);
+        Button missionsButton = CreateMenuButton("MissionsButton", startContent, 330f, GetOrCreateIcon("Check", CheckShape), "Missions 0/3", null, out TextMeshProUGUI missionsButtonText);
 
         ShopPanel shop = CreateShopPanel(canvas.transform);
         MissionsPanel missionsPanel = CreateMissionsPanel(canvas.transform);
+        ElementsPanel elementsPanel = CreateElementsPanel(canvas.transform);
         DailyRewardPanel dailyReward = CreateDailyRewardPanel(canvas.transform);
         GameObject pausePanel = CreatePausePanel(canvas.transform, out Button resumeButton, out Button pauseSettingsButton, out Button homeButton);
         SettingsPanel settings = CreateSettingsPanel(canvas.transform);
@@ -473,6 +463,7 @@ public static class TowerStackSceneBuilder
         UnityEventTools.AddPersistentListener(shareButton.onClick, new UnityAction(gm.Share));
         UnityEventTools.AddPersistentListener(shopButton.onClick, new UnityAction(shop.Open));
         UnityEventTools.AddPersistentListener(missionsButton.onClick, new UnityAction(missionsPanel.Open));
+        UnityEventTools.AddPersistentListener(elementsButton.onClick, new UnityAction(elementsPanel.Open));
         UnityEventTools.AddPersistentListener(settingsButton.onClick, new UnityAction(settings.Open));
         UnityEventTools.AddPersistentListener(pauseButton.onClick, new UnityAction(gm.PauseGame));
         UnityEventTools.AddPersistentListener(resumeButton.onClick, new UnityAction(gm.ResumeGame));
@@ -1455,6 +1446,91 @@ public static class TowerStackSceneBuilder
     }
 
     // One mission: its text, a progress bar with 3/5, and the reward or a green tick when done
+    // Elements page: one tinted row per element with its colour badge, icon, name, floor and what it does
+    private static ElementsPanel CreateElementsPanel(Transform canvas)
+    {
+        Image background = CreateImage("ElementsPanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(900f, 1320f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Elements", 84, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "elements";
+        Place(title.rectTransform, new Vector2(0f, 560f), new Vector2(800f, 110f));
+
+        var elements = new[]
+        {
+            (Block.BlockElementType.Ice, GetOrCreateIcon("Ice", SnowflakeShape)),
+            (Block.BlockElementType.Fire, GetOrCreateIcon("Fire", FlameShape)),
+            (Block.BlockElementType.Wind, GetOrCreateIcon("Wind", WindShape)),
+            (Block.BlockElementType.Electric, GetOrCreateIcon("Electric", BoltShape)),
+        };
+
+        Sprite lockIcon = GetOrCreateIcon("Lock", LockShape);
+        ElementsPanel panel = background.gameObject.AddComponent<ElementsPanel>();
+        panel.rows = new ElementsPanel.Row[elements.Length];
+        float y = 355f;
+        for (int i = 0; i < elements.Length; i++, y -= 240f)
+        {
+            var (element, icon) = elements[i];
+            Color color = Block.ElementColor(element);
+            var row = new ElementsPanel.Row { element = element };
+
+            // Soft tint of the element's colour behind the whole row
+            row.background = CreateRounded(element + "Row", card.transform, new Color(color.r, color.g, color.b, 0.13f), 44f);
+            row.background.raycastTarget = false;
+            Place(row.background.rectTransform, new Vector2(0f, y), new Vector2(820f, 215f));
+
+            // Glowing colour badge with the white element icon
+            Image halo = CreateRounded("Halo", row.background.transform, new Color(color.r, color.g, color.b, 0.35f), 85f);
+            halo.raycastTarget = false;
+            Place(halo.rectTransform, new Vector2(-300f, 0f), new Vector2(170f, 170f));
+            row.badge = CreateRounded("Badge", row.background.transform, color, 70f);
+            row.badge.raycastTarget = false;
+            Place(row.badge.rectTransform, new Vector2(-300f, 0f), new Vector2(140f, 140f));
+            Image iconImage = CreateImage("Icon", row.badge.transform, Color.white);
+            iconImage.sprite = icon;
+            iconImage.raycastTarget = false;
+            Place(iconImage.rectTransform, Vector2.zero, new Vector2(92f, 92f));
+
+            row.nameText = CreateText("Name", row.background.transform, element.ToString(), 54, Navy, TextAlignmentOptions.Left);
+            Place(row.nameText.rectTransform, new Vector2(-10f, 50f), new Vector2(380f, 72f));
+
+            // "Floor 10" tag at the top right; a lock sits in it until the element has been met
+            row.floorPill = CreateRounded("Floor", row.background.transform, Color.white, 28f);
+            row.floorPill.raycastTarget = false;
+            Place(row.floorPill.rectTransform, new Vector2(290f, 50f), new Vector2(190f, 56f));
+            row.floorText = CreatePillLabel(row.floorPill, "Floor 10", 30, Navy, null);
+            Image lockImage = CreateImage("Lock", row.floorPill.transform, Color.white);
+            lockImage.sprite = lockIcon;
+            lockImage.raycastTarget = false;
+            Place(lockImage.rectTransform, new Vector2(-62f, 0f), new Vector2(30f, 30f));
+            row.lockIcon = lockImage.gameObject;
+
+            row.infoText = CreateText("Info", row.background.transform, "", 36, Navy, TextAlignmentOptions.TopLeft);
+            Place(row.infoText.rectTransform, new Vector2(100f, -38f), new Vector2(600f, 100f));
+
+            panel.rows[i] = row;
+        }
+
+        Button close = CreateCardButton("CloseButton", card.transform, "Close", "close", Yellow, YellowText, new Vector2(0f, -565f));
+        UnityEventTools.AddPersistentListener(close.onClick, new UnityAction(panel.Close));
+
+        background.gameObject.SetActive(false);
+        return panel;
+    }
+
+    // Padlock: a rounded body with a keyhole and an arched shackle on top
+    private static bool LockShape(Vector2 p)
+    {
+        bool body = p.x > 26f && p.x < 102f && p.y > 10f && p.y < 72f;
+        float r = (p - new Vector2(64f, 72f)).magnitude;
+        bool shackle = p.y >= 68f && r < 32f && r > 19f;
+        bool keyhole = (p - new Vector2(64f, 46f)).magnitude < 9f || (Mathf.Abs(p.x - 64f) < 4f && p.y > 24f && p.y < 46f);
+        return (body || shackle) && !keyhole;
+    }
+
     private static MissionRow CreateMissionRowTemplate(Transform parent)
     {
         Image row = CreateRounded("MissionRow", parent, ItemColor, 36f);
@@ -1516,6 +1592,52 @@ public static class TowerStackSceneBuilder
         image.raycastTarget = false;
         Place(image.rectTransform, Vector2.zero, new Vector2(56f, 56f));
         return button;
+    }
+
+    // Start-screen menu button: an icon and a label on a slightly see-through pill
+    private static Button CreateMenuButton(string name, Transform parent, float x, Sprite icon, string text, string key, out TextMeshProUGUI label)
+    {
+        Image pill = CreateRounded(name, parent, new Color(1f, 1f, 1f, 0.92f), 55f);
+        RectTransform rt = pill.rectTransform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0f);
+        rt.anchoredPosition = new Vector2(x, 360f);
+        rt.sizeDelta = new Vector2(300f, 110f);
+        Button button = pill.gameObject.AddComponent<Button>();
+        button.targetGraphic = pill;
+
+        Image iconImage = CreateImage("Icon", pill.transform, Navy);
+        iconImage.sprite = icon;
+        iconImage.raycastTarget = false;
+        Place(iconImage.rectTransform, new Vector2(-104f, 0f), new Vector2(46f, 46f));
+
+        label = CreatePillLabel(pill, text, 44, Navy, key);
+        label.margin = new Vector4(76f, 0f, 22f, 0f);
+        MakeSkyAware(pill, label, iconImage);
+        return button;
+    }
+
+    // White by day, navy glass on dark skies (see SkyAwarePill)
+    private static void MakeSkyAware(Image pill, params Graphic[] foregrounds)
+    {
+        SkyAwarePill aware = pill.gameObject.AddComponent<SkyAwarePill>();
+        aware.background = pill;
+        aware.foregrounds = foregrounds;
+    }
+
+    // Shopping bag: a body with a rounded handle on top
+    private static bool BagShape(Vector2 p)
+    {
+        bool body = p.x > 22f && p.x < 106f && p.y > 8f && p.y < 86f;
+        float r = (p - new Vector2(64f, 86f)).magnitude;
+        bool handle = p.y >= 80f && r > 17f && r < 28f;
+        return body || handle;
+    }
+
+    // Four-point sparkle for the Elements button
+    private static bool SparkleShape(Vector2 p)
+    {
+        Vector2 d = p - new Vector2(64f, 64f);
+        return Mathf.Pow(Mathf.Abs(d.x) / 60f, 0.55f) + Mathf.Pow(Mathf.Abs(d.y) / 60f, 0.55f) < 1f;
     }
 
     // "Paused" card: Resume, Settings and Home

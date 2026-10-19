@@ -109,6 +109,13 @@ public static class Localization
         { "element_wind",          new[] { "Wind", "Rüzgâr" } },
         { "element_wind_desc",     new[] { "Gusty speed, perfect gives +2", "Hızı değişir, perfect +2 puan" } },
         { "element_electric",      new[] { "Electric", "Elektrik" } },
+        { "block_grew",            new[] { "Block grew!", "Blok büyüdü!" } },
+        { "elements",              new[] { "Elements", "Elementler" } },
+        { "element_floor_short",   new[] { "Floor {0}", "{0}. kat" } },
+        { "element_ice_info",      new[] { "Slides 30% slower. Comes more often when the tower gets hard.", "%30 daha yavaş kayar. Kule zorlaşınca daha sık gelir." } },
+        { "element_fire_info",     new[] { "Slides 20% faster, but a perfect is twice as easy to land.", "%20 daha hızlı kayar ama perfect yapmak iki kat kolay." } },
+        { "element_wind_info",     new[] { "Its speed rises and falls in gusts. A perfect gives +2 points.", "Hızı dalga dalga değişir. Perfect +2 puan verir." } },
+        { "element_electric_info", new[] { "Normal speed. A perfect makes the block grow back.", "Normal hız. Perfect yaparsan blok yeniden büyür." } },
         { "element_electric_desc", new[] { "Perfect makes the block grow", "Perfect bloğu büyütür" } },
     };
 

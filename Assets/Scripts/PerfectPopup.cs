@@ -61,8 +61,9 @@ public class PerfectPopup : MonoBehaviour
         Destroy(gameObject);
     }
 
-    // combo 2 ve üstündeyse yazının sonuna "x{combo}" eklenir: "Perfect! x3"
-    public static void Spawn(Vector3 worldPos, int combo = 1, int bonusPoints = 0)
+    // combo 2 ve üstündeyse yazının sonuna "x{combo}" eklenir: "Perfect! x3".
+    // Element ödülleri (rüzgârın +2 puanı, elektriğin "Blok büyüdü!" notu) elementin renginde yazılır.
+    public static void Spawn(Vector3 worldPos, int combo = 1, int bonusPoints = 0, string note = null, Color? accent = null)
     {
         Canvas canvas = FindFirstObjectByType<Canvas>();
         if (canvas == null)
@@ -86,7 +87,9 @@ public class PerfectPopup : MonoBehaviour
         {
             string text = Localization.Get("perfect");
             if (combo > 1) text += " x" + combo;
-            if (bonusPoints > 0) text += "  +" + bonusPoints;
+            string tint = "<color=#" + ColorUtility.ToHtmlStringRGB(accent ?? Color.white) + ">";
+            if (bonusPoints > 0) text += "  " + tint + "+" + bonusPoints + "</color>";
+            if (!string.IsNullOrEmpty(note)) text += "\n<size=65%>" + tint + note + "</color></size>";
             label.text = text;
         }
 

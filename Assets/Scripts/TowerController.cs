@@ -74,6 +74,8 @@ public class TowerController : MonoBehaviour
     private Vector3 topScale;       // topBlock'un gerçek ölçüsü (punch efektinden etkilenmez)
     private Vector3 fullScale;      // taban bloğunun ölçüsü; perfect ödülü bloğu en fazla buna kadar büyütür
     private Transform currentBlock; // kayan blok
+    private readonly System.Collections.Generic.HashSet<Block.BlockElementType> announcedElements =
+        new System.Collections.Generic.HashSet<Block.BlockElementType>();   // bu oyunda duyurulan elementler
     private bool moveOnX = true;
     private float direction = 1f;
     private bool isGameOver = false;
@@ -156,7 +158,7 @@ public class TowerController : MonoBehaviour
         direction = Random.value < 0.5f ? -1f : 1f;
 
         int floor = floors + 1;
-        currentElement = ElementRules.Pick(floor, IsStruggling(), out bool isIntroduction);
+        currentElement = ElementRules.Pick(floor, IsStruggling(), out _);
         currentBlockAge = 0f;
 
         Vector3 pos = topBlock.position;
@@ -182,8 +184,18 @@ public class TowerController : MonoBehaviour
         if (currentElement != Block.BlockElementType.None && blockScript != null)
             currentVisual = ElementVisual.Attach(blockScript, IconFor(currentElement), iconBadge, iconMaterial, frameMaterial);
 
-        if (isIntroduction && elementBanner != null)
-            elementBanner.Show(currentElement);
+        // Bu oyunda ilk kez gelen element duyurulur: ilk birkaç oyunda büyük tanıtım, sonra küçük etiket
+        if (currentElement != Block.BlockElementType.None && announcedElements.Add(currentElement))
+        {
+            if (elementBanner != null)
+            {
+                if (PlayerData.ElementSeenCount(currentElement) < ElementBanner.FullIntroductions)
+                    elementBanner.Show(currentElement);
+                else
+                    elementBanner.ShowTag(currentElement);
+            }
+            PlayerData.MarkElementSeen(currentElement);
+        }
 
         currentBlock = go.transform;
 
@@ -234,6 +246,8 @@ public class TowerController : MonoBehaviour
 
             // Uzun perfect serisi ve elektrik bloğu ödülü: blok, taban boyutunu geçmeden büyür
             float grow = ElementRules.PerfectGrowAmount(currentElement);
+            // Elektrik bloğu gerçekten büyüyecekse bunu yazıyla da göster
+            string note = grow > 0f && (scale.x < fullScale.x || scale.z < fullScale.z) ? Localization.Get("block_grew") : null;
             if (combo >= perfectGrowStreak)
                 grow += perfectGrowStep;
             if (grow > 0f)
@@ -245,7 +259,7 @@ public class TowerController : MonoBehaviour
 
             AudioManager.Instance.PlayPerfect(combo);
             Haptics.Medium();
-            PerfectPopup.Spawn(pos + Vector3.up * 0.6f, combo, bonusPoints);
+            PerfectPopup.Spawn(pos + Vector3.up * 0.6f, combo, bonusPoints, note, Block.ElementColor(currentElement));
             CameraShake.Instance.Shake(0.03f, 0.08f);
             ComboEffectManager.Instance.PlayPerfectComboEffect(combo);
 
