@@ -28,6 +28,9 @@ public static class PlayerData
         public List<bool> missionDone = new List<bool>();
         public bool missionBonusClaimed;
 
+        // İlk oyun rehberi görüldü mü
+        public bool tutorialDone;
+
         // Giriş serisi
         public string lastLoginDay;
         public int loginStreak;
@@ -143,6 +146,16 @@ public static class PlayerData
 
         if (changed)
             Save();
+    }
+
+    // Eski sürümde oyun oynamış oyuncuya rehber gösterme
+    public static bool TutorialDone => Data.tutorialDone || Data.gamesPlayed > 0;
+
+    public static void MarkTutorialDone()
+    {
+        if (Data.tutorialDone) return;
+        Data.tutorialDone = true;
+        Save();
     }
 
     public static int MissionCount => Data.missionIds.Count;

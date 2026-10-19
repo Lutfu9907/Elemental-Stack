@@ -15,6 +15,7 @@ public class TowerController : MonoBehaviour
     public float speedIncreasePerScore = 0.05f;
     public float maxMoveSpeed = 6f;     // elementlerin hız etkisi bu tavanın üstüne eklenir
     public float moveRange = 2.6f;
+    [HideInInspector] public float speedMultiplier = 1f;   // ilk oyun rehberi ilk blokları yavaşlatır
 
     [Header("Elements")]
     public GameObject fireEffect;
@@ -112,7 +113,7 @@ public class TowerController : MonoBehaviour
         if (!gameStarted || isGameOver || currentBlock == null) return;
 
         currentBlockAge += Time.deltaTime;
-        float speed = Mathf.Min(maxMoveSpeed, moveSpeed + floors * speedIncreasePerScore)
+        float speed = speedMultiplier * Mathf.Min(maxMoveSpeed, moveSpeed + floors * speedIncreasePerScore)
                       * ElementRules.SpeedMultiplier(currentElement, currentBlockAge);
         Vector3 pos = currentBlock.position;
         float center = AxisValue(topBlock.position);
