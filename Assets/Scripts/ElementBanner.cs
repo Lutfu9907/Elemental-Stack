@@ -2,10 +2,14 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 
-// Bir element ilk kez geldiğinde ekranın üstünde kısa süre görünen bilgi balonu:
-// "Yeni element: Buz" ve altında ne yaptığı.
+// Element geldiğinde ekranın üstünde kısa süre görünen bilgi balonu.
+// İlk birkaç karşılaşmada büyük: "Yeni element: Buz" ve altında ne yaptığı;
+// oyuncu elementi tanıdıktan sonra küçük bir etiket: "Buz  Yavaş kayar".
 public class ElementBanner : MonoBehaviour
 {
+    // Bir elementle bu kadar oyunda karşılaşana kadar büyük tanıtım gösterilir
+    public const int FullIntroductions = 3;
+
     public CanvasGroup canvasGroup;
     public TextMeshProUGUI label;
     public float holdSeconds = 2.2f;
@@ -22,22 +26,40 @@ public class ElementBanner : MonoBehaviour
         string key = ElementKey(element);
         if (key == null) return;
 
+        ShowText(Localization.Get("new_element") + " " + ColoredName(element, key), Localization.Get("element_" + key + "_desc"));
+    }
+
+    // Oyuncu elementi zaten tanıyor: daha küçük ve kısa süreli hatırlatma
+    public void ShowTag(Block.BlockElementType element)
+    {
+        string key = ElementKey(element);
+        if (key == null) return;
+
+        label.text = ColoredName(element, key) + "  <size=70%>" + Localization.Get("element_" + key + "_desc") + "</size>";
+        Play(0.7f, 1.1f);
+    }
+
+    private static string ColoredName(Block.BlockElementType element, string key)
+    {
         string color = ColorUtility.ToHtmlStringRGB(Block.ElementColor(element) * 0.8f);
-        ShowText(Localization.Get("new_element") + " <color=#" + color + ">" + Localization.Get("element_" + key) + "</color>",
-                 Localization.Get("element_" + key + "_desc"));
+        return "<color=#" + color + ">" + Localization.Get("element_" + key) + "</color>";
     }
 
     // Genel kullanım: başlık ve altında küçük bir satır (yükseklik hedefi, yeni rekor...)
     public void ShowText(string title, string subtitle)
     {
         label.text = string.IsNullOrEmpty(subtitle) ? title : title + "\n<size=70%>" + subtitle + "</size>";
-
-        if (routine != null)
-            StopCoroutine(routine);
-        routine = StartCoroutine(ShowRoutine());
+        Play(1f, holdSeconds);
     }
 
-    private IEnumerator ShowRoutine()
+    private void Play(float size, float hold)
+    {
+        if (routine != null)
+            StopCoroutine(routine);
+        routine = StartCoroutine(ShowRoutine(size, hold));
+    }
+
+    private IEnumerator ShowRoutine(float size, float hold)
     {
         RectTransform rt = (RectTransform)transform;
 
@@ -46,13 +68,13 @@ public class ElementBanner : MonoBehaviour
         {
             float n = t / 0.25f;
             canvasGroup.alpha = n;
-            rt.localScale = Vector3.one * Mathf.Lerp(0.7f, 1f, 1f - Mathf.Pow(1f - n, 3f));
+            rt.localScale = Vector3.one * size * Mathf.Lerp(0.7f, 1f, 1f - Mathf.Pow(1f - n, 3f));
             yield return null;
         }
         canvasGroup.alpha = 1f;
-        rt.localScale = Vector3.one;
+        rt.localScale = Vector3.one * size;
 
-        yield return new WaitForSecondsRealtime(holdSeconds);
+        yield return new WaitForSecondsRealtime(hold);
 
         for (float t = 0f; t < 0.4f; t += Time.unscaledDeltaTime)
         {
@@ -63,7 +85,7 @@ public class ElementBanner : MonoBehaviour
         routine = null;
     }
 
-    private static string ElementKey(Block.BlockElementType element)
+    public static string ElementKey(Block.BlockElementType element)
     {
         switch (element)
         {

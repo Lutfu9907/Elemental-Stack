@@ -34,6 +34,9 @@ public static class PlayerData
         // "Reklamları kaldır" satın alındı mı
         public bool adsRemoved;
 
+        // Her elementle kaç oyunda karşılaşıldı (Ateş, Buz, Rüzgâr, Elektrik sırasıyla)
+        public List<int> elementSeen = new List<int>();
+
         // Giriş serisi
         public string lastLoginDay;
         public int loginStreak;
@@ -160,6 +163,23 @@ public static class PlayerData
         Save();
     }
 
+    // Bir elementle kaç oyunda karşılaşıldı; ilk birkaçında büyük tanıtım yazısı çıkar
+    public static int ElementSeenCount(Block.BlockElementType element)
+    {
+        int i = (int)element;
+        return i < Data.elementSeen.Count ? Data.elementSeen[i] : 0;
+    }
+
+    public static void MarkElementSeen(Block.BlockElementType element)
+    {
+        if (element == Block.BlockElementType.None) return;
+        int i = (int)element;
+        while (Data.elementSeen.Count <= i)
+            Data.elementSeen.Add(0);
+        Data.elementSeen[i]++;
+        SaveQuiet();
+    }
+
     // Eski sürümde oyun oynamış oyuncuya rehber gösterme
     public static bool TutorialDone => Data.tutorialDone || Data.gamesPlayed > 0;
 
@@ -254,6 +274,8 @@ public static class PlayerData
         }
 
         // Ücretsiz temalar herkeste var ve hiçbir şey seçilmediyse onlar seçili (eski kayıtlar için de)
+        if (data.elementSeen == null)
+            data.elementSeen = new List<int>();
         if (data.ownedSkins == null)
             data.ownedSkins = new List<string>();
         foreach (string free in new[] { SkinCatalog.DefaultBlockSkin, SkinCatalog.DefaultSkySkin })

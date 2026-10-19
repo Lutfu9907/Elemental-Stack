@@ -33,7 +33,8 @@ Tap to drop the sliding block. Whatever hangs over the block below is sliced off
 | Wind | speed comes in gusts | +2 points |
 | Electric | normal speed | the block grows back a little |
 
-- The first nine floors are plain; Ice, Fire, Wind and Electric are introduced on floors 10, 20, 30 and 40 with a "New element" bubble
+- The first nine floors are plain; Ice, Fire, Wind and Electric are introduced on floors 10, 20, 30 and 40 with a "New element" bubble (shown in full for the first three games, then as a small reminder)
+- Element rewards are spelled out when they happen: Wind's +2 and "Block grew!" for Electric appear in the element's colour, and an Elements page on the start screen explains all four (unknown ones stay locked until you reach them)
 - A helping hand: after bad cuts or when the block gets narrow, Ice and Electric come more often
 - Only element blocks are coloured. While sliding they glow, wear a bright frame, float their icon and leave a particle trail (embers, frost, gusts, sparks); landing bursts into a ring of their colour
 - Editor shortcut for testing: **Tower Stack → Test: Elements Early** brings the elements in on floors 2 to 8

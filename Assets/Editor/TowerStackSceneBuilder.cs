@@ -314,8 +314,8 @@ public static class TowerStackSceneBuilder
         Image shopPill = CreateRounded("ShopButton", startContent, Color.white, 55f);
         RectTransform shopRt = shopPill.rectTransform;
         shopRt.anchorMin = shopRt.anchorMax = shopRt.pivot = new Vector2(0.5f, 0f);
-        shopRt.anchoredPosition = new Vector2(-190f, 360f);
-        shopRt.sizeDelta = new Vector2(340f, 110f);
+        shopRt.anchoredPosition = new Vector2(-330f, 360f);
+        shopRt.sizeDelta = new Vector2(300f, 110f);
         Button shopButton = shopPill.gameObject.AddComponent<Button>();
         shopButton.targetGraphic = shopPill;
         CreatePillLabel(shopPill, "Shop", 50, Navy, "shop");
@@ -324,14 +324,25 @@ public static class TowerStackSceneBuilder
         Image missionsPill = CreateRounded("MissionsButton", startContent, Color.white, 55f);
         RectTransform missionsRt = missionsPill.rectTransform;
         missionsRt.anchorMin = missionsRt.anchorMax = missionsRt.pivot = new Vector2(0.5f, 0f);
-        missionsRt.anchoredPosition = new Vector2(190f, 360f);
-        missionsRt.sizeDelta = new Vector2(340f, 110f);
+        missionsRt.anchoredPosition = new Vector2(330f, 360f);
+        missionsRt.sizeDelta = new Vector2(300f, 110f);
         Button missionsButton = missionsPill.gameObject.AddComponent<Button>();
         missionsButton.targetGraphic = missionsPill;
         TextMeshProUGUI missionsButtonText = CreatePillLabel(missionsPill, "Missions 0/3", 46, Navy, null);
 
+        // Elements page between them: what each element does
+        Image elementsPill = CreateRounded("ElementsButton", startContent, Color.white, 55f);
+        RectTransform elementsRt = elementsPill.rectTransform;
+        elementsRt.anchorMin = elementsRt.anchorMax = elementsRt.pivot = new Vector2(0.5f, 0f);
+        elementsRt.anchoredPosition = new Vector2(0f, 360f);
+        elementsRt.sizeDelta = new Vector2(300f, 110f);
+        Button elementsButton = elementsPill.gameObject.AddComponent<Button>();
+        elementsButton.targetGraphic = elementsPill;
+        CreatePillLabel(elementsPill, "Elements", 46, Navy, "elements");
+
         ShopPanel shop = CreateShopPanel(canvas.transform);
         MissionsPanel missionsPanel = CreateMissionsPanel(canvas.transform);
+        ElementsPanel elementsPanel = CreateElementsPanel(canvas.transform);
         DailyRewardPanel dailyReward = CreateDailyRewardPanel(canvas.transform);
         GameObject pausePanel = CreatePausePanel(canvas.transform, out Button resumeButton, out Button pauseSettingsButton, out Button homeButton);
         SettingsPanel settings = CreateSettingsPanel(canvas.transform);
@@ -473,6 +484,7 @@ public static class TowerStackSceneBuilder
         UnityEventTools.AddPersistentListener(shareButton.onClick, new UnityAction(gm.Share));
         UnityEventTools.AddPersistentListener(shopButton.onClick, new UnityAction(shop.Open));
         UnityEventTools.AddPersistentListener(missionsButton.onClick, new UnityAction(missionsPanel.Open));
+        UnityEventTools.AddPersistentListener(elementsButton.onClick, new UnityAction(elementsPanel.Open));
         UnityEventTools.AddPersistentListener(settingsButton.onClick, new UnityAction(settings.Open));
         UnityEventTools.AddPersistentListener(pauseButton.onClick, new UnityAction(gm.PauseGame));
         UnityEventTools.AddPersistentListener(resumeButton.onClick, new UnityAction(gm.ResumeGame));
@@ -1455,6 +1467,58 @@ public static class TowerStackSceneBuilder
     }
 
     // One mission: its text, a progress bar with 3/5, and the reward or a green tick when done
+    // Elements page: one row per element with its colour badge, icon, name and what it does
+    private static ElementsPanel CreateElementsPanel(Transform canvas)
+    {
+        Image background = CreateImage("ElementsPanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(900f, 1320f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Elements", 84, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "elements";
+        Place(title.rectTransform, new Vector2(0f, 560f), new Vector2(800f, 110f));
+
+        var elements = new[]
+        {
+            (Block.BlockElementType.Ice, GetOrCreateIcon("Ice", SnowflakeShape)),
+            (Block.BlockElementType.Fire, GetOrCreateIcon("Fire", FlameShape)),
+            (Block.BlockElementType.Wind, GetOrCreateIcon("Wind", WindShape)),
+            (Block.BlockElementType.Electric, GetOrCreateIcon("Electric", BoltShape)),
+        };
+
+        ElementsPanel panel = background.gameObject.AddComponent<ElementsPanel>();
+        panel.rows = new ElementsPanel.Row[elements.Length];
+        float y = 360f;
+        for (int i = 0; i < elements.Length; i++, y -= 240f)
+        {
+            var (element, icon) = elements[i];
+            var row = new ElementsPanel.Row { element = element };
+
+            row.badge = CreateRounded(element + "Badge", card.transform, Block.ElementColor(element), 75f);
+            row.badge.raycastTarget = false;
+            Place(row.badge.rectTransform, new Vector2(-310f, y), new Vector2(150f, 150f));
+            row.icon = CreateImage("Icon", row.badge.transform, Color.white);
+            row.icon.sprite = icon;
+            row.icon.raycastTarget = false;
+            Place(row.icon.rectTransform, Vector2.zero, new Vector2(96f, 96f));
+
+            row.nameText = CreateText(element + "Name", card.transform, element.ToString(), 52, Navy, TextAlignmentOptions.Left);
+            Place(row.nameText.rectTransform, new Vector2(90f, y + 48f), new Vector2(580f, 70f));
+            row.infoText = CreateText(element + "Info", card.transform, "", 36, MutedNavy, TextAlignmentOptions.TopLeft);
+            Place(row.infoText.rectTransform, new Vector2(90f, y - 38f), new Vector2(580f, 100f));
+
+            panel.rows[i] = row;
+        }
+
+        Button close = CreateCardButton("CloseButton", card.transform, "Close", "close", Yellow, YellowText, new Vector2(0f, -565f));
+        UnityEventTools.AddPersistentListener(close.onClick, new UnityAction(panel.Close));
+
+        background.gameObject.SetActive(false);
+        return panel;
+    }
+
     private static MissionRow CreateMissionRowTemplate(Transform parent)
     {
         Image row = CreateRounded("MissionRow", parent, ItemColor, 36f);
