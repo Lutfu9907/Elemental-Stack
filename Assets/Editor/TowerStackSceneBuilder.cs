@@ -224,6 +224,11 @@ public static class TowerStackSceneBuilder
         altitude.lineMaterial = rippleMaterial;
         altitude.recordLabel = recordPill.rectTransform;
 
+        // Daily missions progress during play
+        MissionTracker missionTracker = new GameObject("MissionTracker").AddComponent<MissionTracker>();
+        missionTracker.tower = tower;
+        missionTracker.banner = banner;
+
         // Start screen: tap anywhere to start. The panel itself is the (invisible) button.
         Image startPanel = CreateImage("StartPanel", canvas.transform, new Color(0f, 0f, 0f, 0f));
         Stretch(startPanel.rectTransform);
@@ -299,13 +304,25 @@ public static class TowerStackSceneBuilder
         Image shopPill = CreateRounded("ShopButton", startContent, Color.white, 55f);
         RectTransform shopRt = shopPill.rectTransform;
         shopRt.anchorMin = shopRt.anchorMax = shopRt.pivot = new Vector2(0.5f, 0f);
-        shopRt.anchoredPosition = new Vector2(0f, 360f);
-        shopRt.sizeDelta = new Vector2(360f, 110f);
+        shopRt.anchoredPosition = new Vector2(-190f, 360f);
+        shopRt.sizeDelta = new Vector2(340f, 110f);
         Button shopButton = shopPill.gameObject.AddComponent<Button>();
         shopButton.targetGraphic = shopPill;
         CreatePillLabel(shopPill, "Shop", 50, Navy, "shop");
 
+        // Missions button next to it; its label ("Missions 1/3") is filled in by GameManager
+        Image missionsPill = CreateRounded("MissionsButton", startContent, Color.white, 55f);
+        RectTransform missionsRt = missionsPill.rectTransform;
+        missionsRt.anchorMin = missionsRt.anchorMax = missionsRt.pivot = new Vector2(0.5f, 0f);
+        missionsRt.anchoredPosition = new Vector2(190f, 360f);
+        missionsRt.sizeDelta = new Vector2(340f, 110f);
+        Button missionsButton = missionsPill.gameObject.AddComponent<Button>();
+        missionsButton.targetGraphic = missionsPill;
+        TextMeshProUGUI missionsButtonText = CreatePillLabel(missionsPill, "Missions 0/3", 46, Navy, null);
+
         ShopPanel shop = CreateShopPanel(canvas.transform);
+        MissionsPanel missionsPanel = CreateMissionsPanel(canvas.transform);
+        DailyRewardPanel dailyReward = CreateDailyRewardPanel(canvas.transform);
 
         // Game over screen: a white card over a navy dim
         Image gameOverBg = CreateImage("GameOverPanel", canvas.transform, new Color(Navy.r, Navy.g, Navy.b, 0.55f));
@@ -401,6 +418,9 @@ public static class TowerStackSceneBuilder
         gm.titleText = title;
         gm.nextGoalText = nextGoalText;
         gm.altitude = altitude;
+        gm.missions = missionTracker;
+        gm.dailyReward = dailyReward;
+        gm.missionsButtonText = missionsButtonText;
         gm.fade = fade;
         gm.tower = tower;
 
@@ -412,6 +432,7 @@ public static class TowerStackSceneBuilder
         UnityEventTools.AddPersistentListener(startButton.onClick, new UnityAction(gm.StartGame));
         UnityEventTools.AddPersistentListener(restartButton.onClick, new UnityAction(gm.RestartGame));
         UnityEventTools.AddPersistentListener(shopButton.onClick, new UnityAction(shop.Open));
+        UnityEventTools.AddPersistentListener(missionsButton.onClick, new UnityAction(missionsPanel.Open));
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -1336,6 +1357,162 @@ public static class TowerStackSceneBuilder
             return color;
         }
         return inRing ? ring : Color.clear;
+    }
+
+    // -------------------------------------------------------------- missions
+
+    // Overlay with the day's three missions, the all-three bonus and the login streak
+    private static MissionsPanel CreateMissionsPanel(Transform canvas)
+    {
+        Image background = CreateImage("MissionsPanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(900f, 1240f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Missions", 84, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "missions";
+        Place(title.rectTransform, new Vector2(0f, 530f), new Vector2(800f, 110f));
+
+        TextMeshProUGUI streak = CreateText("Streak", card.transform, "Login streak: 1 days", 40, MutedNavy, TextAlignmentOptions.Center);
+        Place(streak.rectTransform, new Vector2(0f, 440f), new Vector2(800f, 60f));
+
+        RectTransform list = CreateUI("List", card.transform);
+        Place(list, new Vector2(0f, 60f), new Vector2(840f, 620f));
+        var layout = list.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.spacing = 24f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        MissionRow template = CreateMissionRowTemplate(card.transform);
+
+        TextMeshProUGUI bonus = CreateText("Bonus", card.transform, "Finish all three: +50", 42, CoinText, TextAlignmentOptions.Center);
+        Place(bonus.rectTransform, new Vector2(0f, -330f), new Vector2(800f, 60f));
+
+        Image closePill = CreateRounded("CloseButton", card.transform, Yellow, 60f);
+        Place(closePill.rectTransform, new Vector2(0f, -490f), new Vector2(420f, 120f));
+        Button closeButton = closePill.gameObject.AddComponent<Button>();
+        closeButton.targetGraphic = closePill;
+        CreatePillLabel(closePill, "Close", 54, YellowText, "close");
+
+        MissionsPanel panel = background.gameObject.AddComponent<MissionsPanel>();
+        panel.list = list;
+        panel.rowTemplate = template;
+        panel.bonusText = bonus;
+        panel.streakText = streak;
+        UnityEventTools.AddPersistentListener(closeButton.onClick, new UnityAction(panel.Close));
+
+        background.gameObject.SetActive(false);
+        return panel;
+    }
+
+    // One mission: its text, a progress bar with 3/5, and the reward or a green tick when done
+    private static MissionRow CreateMissionRowTemplate(Transform parent)
+    {
+        Image row = CreateRounded("MissionRow", parent, ItemColor, 36f);
+        row.raycastTarget = false;
+        row.rectTransform.sizeDelta = new Vector2(820f, 190f);
+
+        TextMeshProUGUI description = CreateText("Description", row.transform, "Make 10 perfects", 42, Navy, TextAlignmentOptions.Left);
+        description.enableAutoSizing = true;
+        description.fontSizeMax = 42f;
+        description.fontSizeMin = 28f;
+        Place(description.rectTransform, new Vector2(-70f, 40f), new Vector2(620f, 64f));
+
+        Image bar = CreateRounded("ProgressBar", row.transform, new Color(0.85f, 0.88f, 0.93f), 13f);
+        bar.raycastTarget = false;
+        Place(bar.rectTransform, new Vector2(-110f, -45f), new Vector2(540f, 26f));
+        Image fill = CreateRounded("Fill", bar.transform, Yellow, 13f);
+        fill.raycastTarget = false;
+        fill.rectTransform.anchorMin = Vector2.zero;
+        fill.rectTransform.anchorMax = new Vector2(0.4f, 1f);
+        fill.rectTransform.offsetMin = Vector2.zero;
+        fill.rectTransform.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI progress = CreateText("Progress", row.transform, "4/10", 34, MutedNavy, TextAlignmentOptions.Left);
+        Place(progress.rectTransform, new Vector2(240f, -45f), new Vector2(120f, 50f));
+
+        RectTransform reward = CreateCoinRow("Reward", row.transform, GetOrCreateCoinIcon(), "+40", 40, CoinText, out TextMeshProUGUI rewardText);
+        Place(reward, new Vector2(320f, 40f), new Vector2(180f, 64f));
+
+        Image done = CreateImage("Done", row.transform, new Color(0.3f, 0.75f, 0.45f));
+        done.sprite = GetOrCreateIcon("Check", CheckShape);
+        done.raycastTarget = false;
+        Place(done.rectTransform, new Vector2(340f, 10f), new Vector2(84f, 84f));
+
+        MissionRow view = row.gameObject.AddComponent<MissionRow>();
+        view.background = row;
+        view.description = description;
+        view.progressFill = fill.rectTransform;
+        view.progressText = progress;
+        view.rewardRow = reward.gameObject;
+        view.rewardText = rewardText;
+        view.doneMark = done.gameObject;
+        return view;
+    }
+
+    private static bool CheckShape(Vector2 p)
+    {
+        return OnPolyline(p, new[] { new Vector2(22f, 66f), new Vector2(52f, 34f), new Vector2(106f, 96f) }, 9f);
+    }
+
+    // "Daily reward" card shown on the first launch of each day
+    private static DailyRewardPanel CreateDailyRewardPanel(Transform canvas)
+    {
+        Image background = CreateImage("DailyRewardPanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(780f, 900f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Daily reward", 72, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "daily_reward";
+        Place(title.rectTransform, new Vector2(0f, 350f), new Vector2(700f, 100f));
+
+        TextMeshProUGUI day = CreateText("Day", card.transform, "Day 1", 96, Coral, TextAlignmentOptions.Center);
+        Place(day.rectTransform, new Vector2(0f, 220f), new Vector2(700f, 120f));
+
+        RectTransform dots = CreateUI("Dots", card.transform);
+        Place(dots, new Vector2(0f, 100f), new Vector2(640f, 50f));
+        var dotsLayout = dots.gameObject.AddComponent<HorizontalLayoutGroup>();
+        dotsLayout.spacing = 26f;
+        dotsLayout.childAlignment = TextAnchor.MiddleCenter;
+        dotsLayout.childControlWidth = false;
+        dotsLayout.childControlHeight = false;
+        dotsLayout.childForceExpandWidth = false;
+        dotsLayout.childForceExpandHeight = false;
+        var dayDots = new Image[7];
+        for (int i = 0; i < dayDots.Length; i++)
+        {
+            dayDots[i] = CreateRounded("Dot" + (i + 1), dots, ItemColor, 22f);
+            dayDots[i].raycastTarget = false;
+            dayDots[i].rectTransform.sizeDelta = new Vector2(44f, 44f);
+        }
+
+        RectTransform amountRow = CreateCoinRow("Amount", card.transform, GetOrCreateCoinIcon(), "+20", 90, CoinText, out TextMeshProUGUI amount);
+        Place(amountRow, new Vector2(0f, -40f), new Vector2(600f, 130f));
+
+        TextMeshProUGUI hint = CreateText("Hint", card.transform, "Come back tomorrow for a bigger reward", 36, MutedNavy, TextAlignmentOptions.Center);
+        hint.gameObject.AddComponent<LocalizedText>().key = "daily_hint";
+        Place(hint.rectTransform, new Vector2(0f, -170f), new Vector2(700f, 60f));
+
+        Image collectPill = CreateRounded("CollectButton", card.transform, Yellow, 65f);
+        Place(collectPill.rectTransform, new Vector2(0f, -320f), new Vector2(460f, 130f));
+        Button collectButton = collectPill.gameObject.AddComponent<Button>();
+        collectButton.targetGraphic = collectPill;
+        CreatePillLabel(collectPill, "Collect", 60, YellowText, "collect");
+
+        DailyRewardPanel panel = background.gameObject.AddComponent<DailyRewardPanel>();
+        panel.dayText = day;
+        panel.amountText = amount;
+        panel.dayDots = dayDots;
+        UnityEventTools.AddPersistentListener(collectButton.onClick, new UnityAction(panel.Collect));
+
+        background.gameObject.SetActive(false);
+        return panel;
     }
 
     // ------------------------------------------------------------------ shop
