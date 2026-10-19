@@ -15,6 +15,7 @@ public class TowerController : MonoBehaviour
     public float speedIncreasePerScore = 0.05f;
     public float maxMoveSpeed = 6f;     // elementlerin hız etkisi bu tavanın üstüne eklenir
     public float moveRange = 2.6f;
+    [HideInInspector] public float speedMultiplier = 1f;   // ilk oyun rehberi ilk blokları yavaşlatır
 
     [Header("Elements")]
     public GameObject fireEffect;
@@ -45,6 +46,7 @@ public class TowerController : MonoBehaviour
     public float perfectGrowStep = 0.15f;
     public Material rippleMaterial;
     private int combo = 0;
+    public int Combo => combo;   // şu anki üst üste perfect sayısı
 
     [Header("Falling Pieces")]
     public float pieceLifetime = 3f;
@@ -111,7 +113,7 @@ public class TowerController : MonoBehaviour
         if (!gameStarted || isGameOver || currentBlock == null) return;
 
         currentBlockAge += Time.deltaTime;
-        float speed = Mathf.Min(maxMoveSpeed, moveSpeed + floors * speedIncreasePerScore)
+        float speed = speedMultiplier * Mathf.Min(maxMoveSpeed, moveSpeed + floors * speedIncreasePerScore)
                       * ElementRules.SpeedMultiplier(currentElement, currentBlockAge);
         Vector3 pos = currentBlock.position;
         float center = AxisValue(topBlock.position);
@@ -429,7 +431,15 @@ public class TowerController : MonoBehaviour
         if (gm == null)
             gm = FindFirstObjectByType<GameManager>();
         if (gm != null)
-            gm.GameOver();
+            gm.OnTowerFailed();   // GameManager karar verir: "Devam etmek ister misin?" ya da oyun sonu
+    }
+
+    // Reklam ya da coin ile devam: düşen blok gider, kule kaldığı yerden yeni blokla sürer
+    public void Revive()
+    {
+        isGameOver = false;
+        combo = 0;
+        CreateNewBlock();
     }
 
     public void RestartGame()

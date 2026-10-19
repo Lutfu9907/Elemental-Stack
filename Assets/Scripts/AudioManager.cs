@@ -41,6 +41,27 @@ public class AudioManager : MonoBehaviour
         }
     }
 
+    // Efekt sesleri açık mı (kalıcı ayar); müzik bundan etkilenmez
+    public bool SfxEnabled
+    {
+        get => PlayerPrefs.GetInt(SfxPrefKey, 1) == 1;
+        set
+        {
+            PlayerPrefs.SetInt(SfxPrefKey, value ? 1 : 0);
+            PlayerPrefs.Save();
+            ApplySfxMute();
+        }
+    }
+
+    private const string SfxPrefKey = "Sfx";
+
+    private void ApplySfxMute()
+    {
+        bool mute = !SfxEnabled;
+        if (audioSource != null) audioSource.mute = mute;
+        if (perfectSource != null) perfectSource.mute = mute;
+    }
+
     private void Awake()
     {
         if (Instance == null)
@@ -62,6 +83,7 @@ public class AudioManager : MonoBehaviour
         musicSource.loop = true;
         musicSource.volume = 0f;
         musicSource.mute = !MusicEnabled;
+        ApplySfxMute();
     }
 
     void Update()

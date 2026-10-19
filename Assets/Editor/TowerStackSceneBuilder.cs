@@ -57,7 +57,6 @@ public static class TowerStackSceneBuilder
     private const string FontExtAssetPath = FontFolder + "/Baloo2 Ext SDF.asset";
     private const string OutlineMaterialPath = FontFolder + "/Baloo2 SDF Outline.mat";
     private const string RoundedSpritePath = "Assets/UI/Rounded.png";
-    private const string MusicIconPath = "Assets/UI/MusicNote.png";
     private const string CoinIconPath = "Assets/UI/Coin.png";
     private const string SkyArtFolder = "Assets/UI/Sky";
     private const string ThemeArtFolder = "Assets/UI/Themes";
@@ -207,6 +206,31 @@ public static class TowerStackSceneBuilder
         banner.label = bannerLabel;
         tower.elementBanner = banner;
 
+        // Pause button, top-right of the HUD
+        Button pauseButton = CreateIconButton("PauseButton", hud, GetOrCreateIcon("Pause", PauseShape), new Vector2(1f, 1f), new Vector2(-48f, -70f));
+
+        // First-game guide: a pulsing tap ring and a hint near the bottom; the tower slows down meanwhile
+        RectTransform tutorialRoot = CreateUI("Tutorial", hud);
+        Stretch(tutorialRoot);
+        CanvasGroup tutorialGroup = tutorialRoot.gameObject.AddComponent<CanvasGroup>();
+        tutorialGroup.blocksRaycasts = false;
+        tutorialGroup.interactable = false;
+        Image tapRing = CreateRounded("TapRing", tutorialRoot, new Color(1f, 1f, 1f, 0.9f), 85f);
+        tapRing.raycastTarget = false;
+        tapRing.rectTransform.anchorMin = tapRing.rectTransform.anchorMax = tapRing.rectTransform.pivot = new Vector2(0.5f, 0f);
+        tapRing.rectTransform.anchoredPosition = new Vector2(0f, 470f);
+        tapRing.rectTransform.sizeDelta = new Vector2(170f, 170f);
+        TextMeshProUGUI tutorialText = CreateText("Hint", tutorialRoot, "Tap when the block is over the tower", 50, Color.white, TextAlignmentOptions.Center);
+        UseOutline(tutorialText);
+        tutorialText.gameObject.AddComponent<LocalizedText>().key = "tutorial_tap";
+        tutorialText.rectTransform.anchorMin = tutorialText.rectTransform.anchorMax = tutorialText.rectTransform.pivot = new Vector2(0.5f, 0f);
+        tutorialText.rectTransform.anchoredPosition = new Vector2(0f, 340f);
+        tutorialText.rectTransform.sizeDelta = new Vector2(940f, 120f);
+        TutorialGuide tutorial = tutorialRoot.gameObject.AddComponent<TutorialGuide>();
+        tutorial.tower = tower;
+        tutorial.hint = tutorialGroup;
+        tutorial.tapRing = tapRing.rectTransform;
+
         // "Best" tag that rides next to the record line in the world
         Image recordPill = CreateRounded("RecordLabel", gameUI, Color.white, 28f);
         recordPill.raycastTarget = false;
@@ -223,6 +247,11 @@ public static class TowerStackSceneBuilder
         altitude.celebrationBurst = AssetDatabase.LoadAssetAtPath<GameObject>(EffectsFolder + "/CandyBurst.prefab");
         altitude.lineMaterial = rippleMaterial;
         altitude.recordLabel = recordPill.rectTransform;
+
+        // Daily missions progress during play
+        MissionTracker missionTracker = new GameObject("MissionTracker").AddComponent<MissionTracker>();
+        missionTracker.tower = tower;
+        missionTracker.banner = banner;
 
         // Start screen: tap anywhere to start. The panel itself is the (invisible) button.
         Image startPanel = CreateImage("StartPanel", canvas.transform, new Color(0f, 0f, 0f, 0f));
@@ -260,22 +289,8 @@ public static class TowerStackSceneBuilder
         languagePill.gameObject.AddComponent<LanguageButton>();
         CreatePillLabel(languagePill, "EN", 42, Navy, "language");
 
-        // Music on/off, top-left: a note icon, crossed out while the music is off
-        Image musicPill = CreateRounded("MusicButton", startContent, Color.white, 46f);
-        RectTransform musicRt = musicPill.rectTransform;
-        musicRt.anchorMin = musicRt.anchorMax = musicRt.pivot = new Vector2(0f, 1f);
-        musicRt.anchoredPosition = new Vector2(48f, -70f);
-        musicRt.sizeDelta = new Vector2(92f, 92f);
-        musicPill.gameObject.AddComponent<Button>().targetGraphic = musicPill;
-        Image noteIcon = CreateImage("Icon", musicPill.transform, Navy);
-        noteIcon.sprite = GetOrCreateMusicIcon();
-        noteIcon.raycastTarget = false;
-        Place(noteIcon.rectTransform, Vector2.zero, new Vector2(58f, 58f));
-        Image slash = CreateImage("MutedSlash", musicPill.transform, Coral);
-        slash.raycastTarget = false;
-        Place(slash.rectTransform, Vector2.zero, new Vector2(9f, 78f));
-        slash.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
-        musicPill.gameObject.AddComponent<MusicButton>().mutedSlash = slash.gameObject;
+        // Settings, top-left: a gear icon (music, sound, vibration, graphics, language, privacy)
+        Button settingsButton = CreateIconButton("SettingsButton", startContent, GetOrCreateIcon("Gear", GearShape), new Vector2(0f, 1f), new Vector2(48f, -70f));
 
         TextMeshProUGUI title = CreateText("Title", startContent, "Elemental\nStack", 180, Navy, TextAlignmentOptions.Center);
         title.lineSpacing = -45f;
@@ -299,13 +314,28 @@ public static class TowerStackSceneBuilder
         Image shopPill = CreateRounded("ShopButton", startContent, Color.white, 55f);
         RectTransform shopRt = shopPill.rectTransform;
         shopRt.anchorMin = shopRt.anchorMax = shopRt.pivot = new Vector2(0.5f, 0f);
-        shopRt.anchoredPosition = new Vector2(0f, 360f);
-        shopRt.sizeDelta = new Vector2(360f, 110f);
+        shopRt.anchoredPosition = new Vector2(-190f, 360f);
+        shopRt.sizeDelta = new Vector2(340f, 110f);
         Button shopButton = shopPill.gameObject.AddComponent<Button>();
         shopButton.targetGraphic = shopPill;
         CreatePillLabel(shopPill, "Shop", 50, Navy, "shop");
 
+        // Missions button next to it; its label ("Missions 1/3") is filled in by GameManager
+        Image missionsPill = CreateRounded("MissionsButton", startContent, Color.white, 55f);
+        RectTransform missionsRt = missionsPill.rectTransform;
+        missionsRt.anchorMin = missionsRt.anchorMax = missionsRt.pivot = new Vector2(0.5f, 0f);
+        missionsRt.anchoredPosition = new Vector2(190f, 360f);
+        missionsRt.sizeDelta = new Vector2(340f, 110f);
+        Button missionsButton = missionsPill.gameObject.AddComponent<Button>();
+        missionsButton.targetGraphic = missionsPill;
+        TextMeshProUGUI missionsButtonText = CreatePillLabel(missionsPill, "Missions 0/3", 46, Navy, null);
+
         ShopPanel shop = CreateShopPanel(canvas.transform);
+        MissionsPanel missionsPanel = CreateMissionsPanel(canvas.transform);
+        DailyRewardPanel dailyReward = CreateDailyRewardPanel(canvas.transform);
+        GameObject pausePanel = CreatePausePanel(canvas.transform, out Button resumeButton, out Button pauseSettingsButton, out Button homeButton);
+        SettingsPanel settings = CreateSettingsPanel(canvas.transform);
+        ContinuePanel continuePanel = CreateContinuePanel(canvas.transform);
 
         // Game over screen: a white card over a navy dim
         Image gameOverBg = CreateImage("GameOverPanel", canvas.transform, new Color(Navy.r, Navy.g, Navy.b, 0.55f));
@@ -338,11 +368,29 @@ public static class TowerStackSceneBuilder
         RectTransform coinsRow = CreateCoinRow("CoinsEarned", card.transform, coinIcon, "+0", 64, CoinText, out TextMeshProUGUI coinsEarnedText);
         Place(coinsRow, new Vector2(0f, -240f), new Vector2(600f, 90f));
 
+        // "x2" beside the coins: watch an ad to get this game's coins again
+        Image doublePill = CreateRounded("DoubleCoinsButton", card.transform, Coral, 40f);
+        Place(doublePill.rectTransform, new Vector2(270f, -240f), new Vector2(150f, 80f));
+        Button doubleButton = doublePill.gameObject.AddComponent<Button>();
+        doubleButton.targetGraphic = doublePill;
+        CreatePillLabel(doublePill, "x2", 46, Color.white, "double_coins");
+        doublePill.gameObject.SetActive(false);
+
         Image restartPill = CreateRounded("RestartButton", card.transform, Yellow, 75f);
-        Place(restartPill.rectTransform, new Vector2(0f, -395f), new Vector2(620f, 150f));
+        Place(restartPill.rectTransform, new Vector2(-85f, -395f), new Vector2(520f, 150f));
         Button restartButton = restartPill.gameObject.AddComponent<Button>();
         restartButton.targetGraphic = restartPill;
         CreatePillLabel(restartPill, "Play again", 60, YellowText, "play_again");
+
+        // Round share button beside Play again
+        Image sharePill = CreateRounded("ShareButton", card.transform, ItemColor, 75f);
+        Place(sharePill.rectTransform, new Vector2(270f, -395f), new Vector2(150f, 150f));
+        Button shareButton = sharePill.gameObject.AddComponent<Button>();
+        shareButton.targetGraphic = sharePill;
+        Image shareIcon = CreateImage("Icon", sharePill.transform, Navy);
+        shareIcon.sprite = GetOrCreateIcon("Share", ShareShape);
+        shareIcon.raycastTarget = false;
+        Place(shareIcon.rectTransform, Vector2.zero, new Vector2(78f, 78f));
 
         GameOverPanelController gameOverPanel = gameOverBg.gameObject.AddComponent<GameOverPanelController>();
         gameOverPanel.canvasGroup = gameOverGroup;
@@ -401,6 +449,17 @@ public static class TowerStackSceneBuilder
         gm.titleText = title;
         gm.nextGoalText = nextGoalText;
         gm.altitude = altitude;
+        gm.missions = missionTracker;
+        gm.dailyReward = dailyReward;
+        gm.missionsButtonText = missionsButtonText;
+        gm.pausePanel = pausePanel;
+        gm.continuePanel = continuePanel;
+        gm.doubleCoinsButton = doublePill.gameObject;
+
+        // Graphics quality (bloom and shadows off on low-end phones)
+        GraphicsQualityApplier quality = new GameObject("GraphicsQuality").AddComponent<GraphicsQualityApplier>();
+        quality.targetCamera = Object.FindFirstObjectByType<Camera>();
+        quality.sun = Object.FindFirstObjectByType<Light>();
         gm.fade = fade;
         gm.tower = tower;
 
@@ -411,7 +470,15 @@ public static class TowerStackSceneBuilder
 
         UnityEventTools.AddPersistentListener(startButton.onClick, new UnityAction(gm.StartGame));
         UnityEventTools.AddPersistentListener(restartButton.onClick, new UnityAction(gm.RestartGame));
+        UnityEventTools.AddPersistentListener(shareButton.onClick, new UnityAction(gm.Share));
         UnityEventTools.AddPersistentListener(shopButton.onClick, new UnityAction(shop.Open));
+        UnityEventTools.AddPersistentListener(missionsButton.onClick, new UnityAction(missionsPanel.Open));
+        UnityEventTools.AddPersistentListener(settingsButton.onClick, new UnityAction(settings.Open));
+        UnityEventTools.AddPersistentListener(pauseButton.onClick, new UnityAction(gm.PauseGame));
+        UnityEventTools.AddPersistentListener(resumeButton.onClick, new UnityAction(gm.ResumeGame));
+        UnityEventTools.AddPersistentListener(pauseSettingsButton.onClick, new UnityAction(settings.Open));
+        UnityEventTools.AddPersistentListener(homeButton.onClick, new UnityAction(gm.RestartGame));
+        UnityEventTools.AddPersistentListener(doubleButton.onClick, new UnityAction(gm.DoubleCoins));
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -885,7 +952,6 @@ public static class TowerStackSceneBuilder
         return label;
     }
 
-    // White eighth-note icon (head, stem and flag), drawn with 4x4 supersampling for smooth edges
     // ----------------------------------------------------------- block themes
 
     // Textures, placement effects and shop pictures for the block and sky themes
@@ -1338,6 +1404,359 @@ public static class TowerStackSceneBuilder
         return inRing ? ring : Color.clear;
     }
 
+    // -------------------------------------------------------------- missions
+
+    // Overlay with the day's three missions, the all-three bonus and the login streak
+    private static MissionsPanel CreateMissionsPanel(Transform canvas)
+    {
+        Image background = CreateImage("MissionsPanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(900f, 1240f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Missions", 84, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "missions";
+        Place(title.rectTransform, new Vector2(0f, 530f), new Vector2(800f, 110f));
+
+        TextMeshProUGUI streak = CreateText("Streak", card.transform, "Login streak: 1 days", 40, MutedNavy, TextAlignmentOptions.Center);
+        Place(streak.rectTransform, new Vector2(0f, 440f), new Vector2(800f, 60f));
+
+        RectTransform list = CreateUI("List", card.transform);
+        Place(list, new Vector2(0f, 60f), new Vector2(840f, 620f));
+        var layout = list.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.spacing = 24f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        MissionRow template = CreateMissionRowTemplate(card.transform);
+
+        TextMeshProUGUI bonus = CreateText("Bonus", card.transform, "Finish all three: +50", 42, CoinText, TextAlignmentOptions.Center);
+        Place(bonus.rectTransform, new Vector2(0f, -330f), new Vector2(800f, 60f));
+
+        Image closePill = CreateRounded("CloseButton", card.transform, Yellow, 60f);
+        Place(closePill.rectTransform, new Vector2(0f, -490f), new Vector2(420f, 120f));
+        Button closeButton = closePill.gameObject.AddComponent<Button>();
+        closeButton.targetGraphic = closePill;
+        CreatePillLabel(closePill, "Close", 54, YellowText, "close");
+
+        MissionsPanel panel = background.gameObject.AddComponent<MissionsPanel>();
+        panel.list = list;
+        panel.rowTemplate = template;
+        panel.bonusText = bonus;
+        panel.streakText = streak;
+        UnityEventTools.AddPersistentListener(closeButton.onClick, new UnityAction(panel.Close));
+
+        background.gameObject.SetActive(false);
+        return panel;
+    }
+
+    // One mission: its text, a progress bar with 3/5, and the reward or a green tick when done
+    private static MissionRow CreateMissionRowTemplate(Transform parent)
+    {
+        Image row = CreateRounded("MissionRow", parent, ItemColor, 36f);
+        row.raycastTarget = false;
+        row.rectTransform.sizeDelta = new Vector2(820f, 190f);
+
+        TextMeshProUGUI description = CreateText("Description", row.transform, "Make 10 perfects", 42, Navy, TextAlignmentOptions.Left);
+        description.enableAutoSizing = true;
+        description.fontSizeMax = 42f;
+        description.fontSizeMin = 28f;
+        Place(description.rectTransform, new Vector2(-70f, 40f), new Vector2(620f, 64f));
+
+        Image bar = CreateRounded("ProgressBar", row.transform, new Color(0.85f, 0.88f, 0.93f), 13f);
+        bar.raycastTarget = false;
+        Place(bar.rectTransform, new Vector2(-110f, -45f), new Vector2(540f, 26f));
+        Image fill = CreateRounded("Fill", bar.transform, Yellow, 13f);
+        fill.raycastTarget = false;
+        fill.rectTransform.anchorMin = Vector2.zero;
+        fill.rectTransform.anchorMax = new Vector2(0.4f, 1f);
+        fill.rectTransform.offsetMin = Vector2.zero;
+        fill.rectTransform.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI progress = CreateText("Progress", row.transform, "4/10", 34, MutedNavy, TextAlignmentOptions.Left);
+        Place(progress.rectTransform, new Vector2(240f, -45f), new Vector2(120f, 50f));
+
+        RectTransform reward = CreateCoinRow("Reward", row.transform, GetOrCreateCoinIcon(), "+40", 40, CoinText, out TextMeshProUGUI rewardText);
+        Place(reward, new Vector2(320f, 40f), new Vector2(180f, 64f));
+
+        Image done = CreateImage("Done", row.transform, new Color(0.3f, 0.75f, 0.45f));
+        done.sprite = GetOrCreateIcon("Check", CheckShape);
+        done.raycastTarget = false;
+        Place(done.rectTransform, new Vector2(340f, 10f), new Vector2(84f, 84f));
+
+        MissionRow view = row.gameObject.AddComponent<MissionRow>();
+        view.background = row;
+        view.description = description;
+        view.progressFill = fill.rectTransform;
+        view.progressText = progress;
+        view.rewardRow = reward.gameObject;
+        view.rewardText = rewardText;
+        view.doneMark = done.gameObject;
+        return view;
+    }
+
+    // ------------------------------------------------------ pause, settings
+
+    // Round white button with a navy icon
+    private static Button CreateIconButton(string name, Transform parent, Sprite icon, Vector2 anchor, Vector2 position)
+    {
+        Image pill = CreateRounded(name, parent, Color.white, 46f);
+        RectTransform rt = pill.rectTransform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = anchor;
+        rt.anchoredPosition = position;
+        rt.sizeDelta = new Vector2(92f, 92f);
+        Button button = pill.gameObject.AddComponent<Button>();
+        button.targetGraphic = pill;
+        Image image = CreateImage("Icon", pill.transform, Navy);
+        image.sprite = icon;
+        image.raycastTarget = false;
+        Place(image.rectTransform, Vector2.zero, new Vector2(56f, 56f));
+        return button;
+    }
+
+    // "Paused" card: Resume, Settings and Home
+    private static GameObject CreatePausePanel(Transform canvas, out Button resume, out Button settings, out Button home)
+    {
+        Image background = CreateImage("PausePanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(700f, 780f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Paused", 84, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "paused";
+        Place(title.rectTransform, new Vector2(0f, 270f), new Vector2(640f, 110f));
+
+        resume = CreateCardButton("ResumeButton", card.transform, "Resume", "resume", Yellow, YellowText, new Vector2(0f, 100f));
+        settings = CreateCardButton("SettingsButton", card.transform, "Settings", "settings", ItemColor, Navy, new Vector2(0f, -60f));
+        home = CreateCardButton("HomeButton", card.transform, "Home", "home", ItemColor, Navy, new Vector2(0f, -220f));
+
+        background.gameObject.SetActive(false);
+        return background.gameObject;
+    }
+
+    private static Button CreateCardButton(string name, Transform parent, string text, string key, Color color, Color textColor, Vector2 position)
+    {
+        Image pill = CreateRounded(name, parent, color, 60f);
+        Place(pill.rectTransform, position, new Vector2(500f, 120f));
+        Button button = pill.gameObject.AddComponent<Button>();
+        button.targetGraphic = pill;
+        CreatePillLabel(pill, text, 52, textColor, key);
+        return button;
+    }
+
+    // Settings: one row per option, with its current value on a button at the right
+    private static SettingsPanel CreateSettingsPanel(Transform canvas)
+    {
+        Image background = CreateImage("SettingsPanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(900f, 1380f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Settings", 84, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "settings";
+        Place(title.rectTransform, new Vector2(0f, 590f), new Vector2(800f, 110f));
+
+        SettingsPanel panel = background.gameObject.AddComponent<SettingsPanel>();
+        float y = 440f;
+        Button music = CreateSettingRow(card.transform, "music", "Music", y, out panel.musicValue, out panel.musicPill); y -= 140f;
+        Button sfx = CreateSettingRow(card.transform, "sound_effects", "Sound effects", y, out panel.sfxValue, out panel.sfxPill); y -= 140f;
+        Button haptics = CreateSettingRow(card.transform, "vibration", "Vibration", y, out panel.hapticsValue, out panel.hapticsPill); y -= 140f;
+        Button quality = CreateSettingRow(card.transform, "graphics", "Graphics", y, out panel.qualityValue, out Image _); y -= 140f;
+        Button language = CreateSettingRow(card.transform, "language_label", "Language", y, out panel.languageValue, out Image _); y -= 160f;
+
+        Button privacy = CreateCardButton("PrivacyButton", card.transform, "Privacy policy", "privacy_policy", ItemColor, Navy, new Vector2(0f, y));
+        privacy.GetComponent<RectTransform>().sizeDelta = new Vector2(760f, 110f);
+
+        Button restore = CreateCardButton("RestoreButton", card.transform, "Restore purchases", null, ItemColor, Navy, new Vector2(0f, -400f));
+        restore.GetComponent<RectTransform>().sizeDelta = new Vector2(760f, 90f);
+        panel.restoreText = restore.GetComponentInChildren<TextMeshProUGUI>();
+        panel.restoreText.fontSizeMax = 40;
+
+        TextMeshProUGUI version = CreateText("Version", card.transform, "v1.0", 32, MutedNavy, TextAlignmentOptions.Center);
+        Place(version.rectTransform, new Vector2(0f, -475f), new Vector2(600f, 40f));
+        panel.versionText = version;
+
+        // Ad consent choices (shown only where the law asks for it); the version moves aside to make room
+        TextMeshProUGUI adPrivacy = CreateText("AdPrivacyButton", card.transform, "Ad privacy choices", 34, MutedNavy, TextAlignmentOptions.Center);
+        adPrivacy.gameObject.AddComponent<LocalizedText>().key = "ad_privacy";
+        adPrivacy.fontStyle = FontStyles.Underline;
+        adPrivacy.raycastTarget = true;
+        Place(adPrivacy.rectTransform, new Vector2(0f, -525f), new Vector2(600f, 50f));
+        Button adPrivacyButton = adPrivacy.gameObject.AddComponent<Button>();
+        adPrivacyButton.targetGraphic = adPrivacy;
+        panel.adPrivacyButton = adPrivacy.gameObject;
+        UnityEventTools.AddPersistentListener(adPrivacyButton.onClick, new UnityAction(panel.OpenAdPrivacy));
+
+        Button close = CreateCardButton("CloseButton", card.transform, "Close", "close", Yellow, YellowText, new Vector2(0f, -615f));
+
+        UnityEventTools.AddPersistentListener(music.onClick, new UnityAction(panel.ToggleMusic));
+        UnityEventTools.AddPersistentListener(sfx.onClick, new UnityAction(panel.ToggleSfx));
+        UnityEventTools.AddPersistentListener(haptics.onClick, new UnityAction(panel.ToggleHaptics));
+        UnityEventTools.AddPersistentListener(quality.onClick, new UnityAction(panel.ToggleQuality));
+        UnityEventTools.AddPersistentListener(language.onClick, new UnityAction(panel.ToggleLanguage));
+        UnityEventTools.AddPersistentListener(privacy.onClick, new UnityAction(panel.OpenPrivacy));
+        UnityEventTools.AddPersistentListener(restore.onClick, new UnityAction(panel.RestorePurchases));
+        UnityEventTools.AddPersistentListener(close.onClick, new UnityAction(panel.Close));
+
+        background.gameObject.SetActive(false);
+        return panel;
+    }
+
+    // "Keep going?" card after a miss: watch an ad or pay coins to continue, with a 5 second countdown
+    private static ContinuePanel CreateContinuePanel(Transform canvas)
+    {
+        Image background = CreateImage("ContinuePanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(760f, 900f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Keep going?", 72, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "continue_title";
+        Place(title.rectTransform, new Vector2(0f, 330f), new Vector2(700f, 110f));
+
+        Image ring = CreateRounded("Countdown", card.transform, ItemColor, 80f);
+        ring.raycastTarget = false;
+        Place(ring.rectTransform, new Vector2(0f, 170f), new Vector2(160f, 160f));
+        TextMeshProUGUI countdown = CreatePillLabel(ring, "5", 96, Coral, null);
+
+        Button watchAd = CreateCardButton("WatchAdButton", card.transform, "Watch ad", "continue_ad", Yellow, YellowText, new Vector2(0f, -10f));
+        watchAd.GetComponent<RectTransform>().sizeDelta = new Vector2(560f, 130f);
+
+        Image coinsPill = CreateRounded("CoinsButton", card.transform, ItemColor, 60f);
+        Place(coinsPill.rectTransform, new Vector2(0f, -170f), new Vector2(560f, 120f));
+        Button coinsButton = coinsPill.gameObject.AddComponent<Button>();
+        coinsButton.targetGraphic = coinsPill;
+        RectTransform costRow = CreateCoinRow("Cost", coinsPill.transform, GetOrCreateCoinIcon(), "100", 52, Navy, out TextMeshProUGUI costText);
+        Stretch(costRow);
+
+        TextMeshProUGUI no = CreateText("NoThanks", card.transform, "No thanks", 44, MutedNavy, TextAlignmentOptions.Center);
+        no.gameObject.AddComponent<LocalizedText>().key = "continue_no";
+        Place(no.rectTransform, new Vector2(0f, -330f), new Vector2(500f, 90f));
+        no.raycastTarget = true;
+        Button noButton = no.gameObject.AddComponent<Button>();
+        noButton.targetGraphic = no;
+
+        ContinuePanel panel = background.gameObject.AddComponent<ContinuePanel>();
+        panel.watchAdButton = watchAd.gameObject;
+        panel.coinsButton = coinsPill.gameObject;
+        panel.coinsCostText = costText;
+        panel.countdownText = countdown;
+        UnityEventTools.AddPersistentListener(watchAd.onClick, new UnityAction(panel.WatchAd));
+        UnityEventTools.AddPersistentListener(coinsButton.onClick, new UnityAction(panel.UseCoins));
+        UnityEventTools.AddPersistentListener(noButton.onClick, new UnityAction(panel.Decline));
+
+        background.gameObject.SetActive(false);
+        return panel;
+    }
+
+    // "Music ........ [On]" row; returns the value button
+    private static Button CreateSettingRow(Transform parent, string key, string label, float y, out TextMeshProUGUI value, out Image valuePill)
+    {
+        TextMeshProUGUI name = CreateText(key + "Label", parent, label, 46, Navy, TextAlignmentOptions.Left);
+        name.gameObject.AddComponent<LocalizedText>().key = key;
+        Place(name.rectTransform, new Vector2(-150f, y), new Vector2(460f, 80f));
+
+        valuePill = CreateRounded(key + "Value", parent, ItemColor, 45f);
+        Place(valuePill.rectTransform, new Vector2(250f, y), new Vector2(260f, 90f));
+        Button button = valuePill.gameObject.AddComponent<Button>();
+        button.targetGraphic = valuePill;
+        value = CreatePillLabel(valuePill, "On", 42, Navy, null);
+        return button;
+    }
+
+    // Gear: a ring with eight teeth and a hole in the middle
+    private static bool GearShape(Vector2 p)
+    {
+        Vector2 d = p - new Vector2(64f, 64f);
+        float r = d.magnitude;
+        float angle = Mathf.Atan2(d.y, d.x);
+        bool tooth = Mathf.Cos(angle * 8f) > 0.25f;
+        return r >= 18f && (r <= 40f || (tooth && r <= 54f));
+    }
+
+    // Pause: two rounded bars
+    private static bool PauseShape(Vector2 p)
+    {
+        return DistanceToSegment(p, new Vector2(44f, 30f), new Vector2(44f, 98f)) <= 11f
+            || DistanceToSegment(p, new Vector2(84f, 30f), new Vector2(84f, 98f)) <= 11f;
+    }
+
+    // Share symbol: three dots joined by two lines
+    private static bool ShareShape(Vector2 p)
+    {
+        Vector2 top = new Vector2(92f, 100f), left = new Vector2(34f, 64f), bottom = new Vector2(92f, 28f);
+        return Vector2.Distance(p, top) <= 17f || Vector2.Distance(p, left) <= 17f || Vector2.Distance(p, bottom) <= 17f
+            || DistanceToSegment(p, left, top) <= 6f || DistanceToSegment(p, left, bottom) <= 6f;
+    }
+
+    private static bool CheckShape(Vector2 p)
+    {
+        return OnPolyline(p, new[] { new Vector2(22f, 66f), new Vector2(52f, 34f), new Vector2(106f, 96f) }, 9f);
+    }
+
+    // "Daily reward" card shown on the first launch of each day
+    private static DailyRewardPanel CreateDailyRewardPanel(Transform canvas)
+    {
+        Image background = CreateImage("DailyRewardPanel", canvas, new Color(Navy.r, Navy.g, Navy.b, 0.6f));
+        Stretch(background.rectTransform);
+        RectTransform content = CreateSafeArea(background.transform);
+        Image card = CreateRounded("Card", content, Color.white, 64f);
+        Place(card.rectTransform, Vector2.zero, new Vector2(780f, 900f));
+
+        TextMeshProUGUI title = CreateText("Title", card.transform, "Daily reward", 72, Navy, TextAlignmentOptions.Center);
+        title.gameObject.AddComponent<LocalizedText>().key = "daily_reward";
+        Place(title.rectTransform, new Vector2(0f, 350f), new Vector2(700f, 100f));
+
+        TextMeshProUGUI day = CreateText("Day", card.transform, "Day 1", 96, Coral, TextAlignmentOptions.Center);
+        Place(day.rectTransform, new Vector2(0f, 220f), new Vector2(700f, 120f));
+
+        RectTransform dots = CreateUI("Dots", card.transform);
+        Place(dots, new Vector2(0f, 100f), new Vector2(640f, 50f));
+        var dotsLayout = dots.gameObject.AddComponent<HorizontalLayoutGroup>();
+        dotsLayout.spacing = 26f;
+        dotsLayout.childAlignment = TextAnchor.MiddleCenter;
+        dotsLayout.childControlWidth = false;
+        dotsLayout.childControlHeight = false;
+        dotsLayout.childForceExpandWidth = false;
+        dotsLayout.childForceExpandHeight = false;
+        var dayDots = new Image[7];
+        for (int i = 0; i < dayDots.Length; i++)
+        {
+            dayDots[i] = CreateRounded("Dot" + (i + 1), dots, ItemColor, 22f);
+            dayDots[i].raycastTarget = false;
+            dayDots[i].rectTransform.sizeDelta = new Vector2(44f, 44f);
+        }
+
+        RectTransform amountRow = CreateCoinRow("Amount", card.transform, GetOrCreateCoinIcon(), "+20", 90, CoinText, out TextMeshProUGUI amount);
+        Place(amountRow, new Vector2(0f, -40f), new Vector2(600f, 130f));
+
+        TextMeshProUGUI hint = CreateText("Hint", card.transform, "Come back tomorrow for a bigger reward", 36, MutedNavy, TextAlignmentOptions.Center);
+        hint.gameObject.AddComponent<LocalizedText>().key = "daily_hint";
+        Place(hint.rectTransform, new Vector2(0f, -170f), new Vector2(700f, 60f));
+
+        Image collectPill = CreateRounded("CollectButton", card.transform, Yellow, 65f);
+        Place(collectPill.rectTransform, new Vector2(0f, -320f), new Vector2(460f, 130f));
+        Button collectButton = collectPill.gameObject.AddComponent<Button>();
+        collectButton.targetGraphic = collectPill;
+        CreatePillLabel(collectPill, "Collect", 60, YellowText, "collect");
+
+        DailyRewardPanel panel = background.gameObject.AddComponent<DailyRewardPanel>();
+        panel.dayText = day;
+        panel.amountText = amount;
+        panel.dayDots = dayDots;
+        UnityEventTools.AddPersistentListener(collectButton.onClick, new UnityAction(panel.Collect));
+
+        background.gameObject.SetActive(false);
+        return panel;
+    }
+
     // ------------------------------------------------------------------ shop
 
     // Shop overlay: a white card with the coin total, a grid of block themes, a grid of sky themes
@@ -1374,10 +1793,16 @@ public static class TowerStackSceneBuilder
         Place(skyGrid, new Vector2(0f, -285f), new Vector2(800f, 260f));
 
         TextMeshProUGUI message = CreateText("Message", card.transform, "Not enough coins", 44, Coral, TextAlignmentOptions.Center);
-        Place(message.rectTransform, new Vector2(0f, -460f), new Vector2(800f, 60f));
+        Place(message.rectTransform, new Vector2(0f, -440f), new Vector2(800f, 60f));
+
+        // "Remove ads  $1.99" (hidden when the store is not ready or it is already bought)
+        Button removeAds = CreateCardButton("RemoveAdsButton", card.transform, "Remove ads", null, Navy, Color.white, new Vector2(0f, -545f));
+        removeAds.GetComponent<RectTransform>().sizeDelta = new Vector2(600f, 100f);
+        TextMeshProUGUI removeAdsText = removeAds.GetComponentInChildren<TextMeshProUGUI>();
+        removeAdsText.fontSizeMax = 44;
 
         Image closePill = CreateRounded("CloseButton", card.transform, Yellow, 60f);
-        Place(closePill.rectTransform, new Vector2(0f, -640f), new Vector2(420f, 120f));
+        Place(closePill.rectTransform, new Vector2(0f, -670f), new Vector2(420f, 110f));
         Button closeButton = closePill.gameObject.AddComponent<Button>();
         closeButton.targetGraphic = closePill;
         CreatePillLabel(closePill, "Close", 54, YellowText, "close");
@@ -1390,6 +1815,9 @@ public static class TowerStackSceneBuilder
         shop.itemTemplate = template;
         shop.coinsText = coinsText;
         shop.messageText = message;
+        shop.removeAdsButton = removeAds.gameObject;
+        shop.removeAdsText = removeAdsText;
+        UnityEventTools.AddPersistentListener(removeAds.onClick, new UnityAction(shop.BuyRemoveAds));
         UnityEventTools.AddPersistentListener(closeButton.onClick, new UnityAction(shop.Close));
 
         background.gameObject.SetActive(false);
@@ -1535,71 +1963,6 @@ public static class TowerStackSceneBuilder
         importer.alphaIsTransparency = true;
         importer.SaveAndReimport();
         return AssetDatabase.LoadAssetAtPath<Sprite>(CoinIconPath);
-    }
-
-    private static Sprite GetOrCreateMusicIcon()
-    {
-        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(MusicIconPath);
-        if (existing != null)
-            return existing;
-
-        const int size = 128;
-        const int samples = 4;
-        // Flag: a quadratic curve leaving the top of the stem
-        Vector2 p0 = new Vector2(70f, 112f), p1 = new Vector2(104f, 100f), p2 = new Vector2(98f, 64f);
-        var flag = new Vector2[17];
-        for (int i = 0; i < flag.Length; i++)
-        {
-            float t = i / (flag.Length - 1f);
-            flag[i] = (1 - t) * (1 - t) * p0 + 2 * (1 - t) * t * p1 + t * t * p2;
-        }
-
-        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        var pixels = new Color32[size * size];
-        float cos = Mathf.Cos(-20f * Mathf.Deg2Rad), sin = Mathf.Sin(-20f * Mathf.Deg2Rad);
-        for (int y = 0; y < size; y++)
-        {
-            for (int x = 0; x < size; x++)
-            {
-                int hits = 0;
-                for (int sy = 0; sy < samples; sy++)
-                {
-                    for (int sx = 0; sx < samples; sx++)
-                    {
-                        float px = x + (sx + 0.5f) / samples;
-                        float py = y + (sy + 0.5f) / samples;
-
-                        // Tilted oval note head
-                        float dx = px - 48f, dy = py - 34f;
-                        float rx = dx * cos - dy * sin, ry = dx * sin + dy * cos;
-                        bool head = (rx * rx) / (25f * 25f) + (ry * ry) / (17f * 17f) <= 1f;
-                        bool stem = px >= 64f && px <= 73f && py >= 34f && py <= 114f;
-                        bool flagHit = false;
-                        for (int i = 0; i < flag.Length - 1 && !flagHit; i++)
-                        {
-                            float thickness = Mathf.Lerp(8f, 3f, i / (flag.Length - 2f));
-                            flagHit = DistanceToSegment(new Vector2(px, py), flag[i], flag[i + 1]) <= thickness;
-                        }
-                        if (head || stem || flagHit) hits++;
-                    }
-                }
-                byte alpha = (byte)(255 * hits / (samples * samples));
-                pixels[y * size + x] = new Color32(255, 255, 255, alpha);
-            }
-        }
-        texture.SetPixels32(pixels);
-        Directory.CreateDirectory(Path.GetDirectoryName(MusicIconPath));
-        File.WriteAllBytes(MusicIconPath, texture.EncodeToPNG());
-        Object.DestroyImmediate(texture);
-
-        AssetDatabase.ImportAsset(MusicIconPath);
-        var importer = (TextureImporter)AssetImporter.GetAtPath(MusicIconPath);
-        importer.textureType = TextureImporterType.Sprite;
-        importer.spriteImportMode = SpriteImportMode.Single;
-        importer.mipmapEnabled = false;
-        importer.alphaIsTransparency = true;
-        importer.SaveAndReimport();
-        return AssetDatabase.LoadAssetAtPath<Sprite>(MusicIconPath);
     }
 
     // ------------------------------------------------------ element icons
@@ -1787,7 +2150,8 @@ public static class TowerStackSceneBuilder
 
     private static void ApplyMobilePlayerSettings()
     {
-        PlayerSettings.productName = "Elemental Stack";
+        // Package name, version, IL2CPP/ARM64, app bundle and the app icon
+        ReleaseTools.ApplyAndroidSettings();
 
         // Portrait only: the tower is built for a tall phone screen.
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
