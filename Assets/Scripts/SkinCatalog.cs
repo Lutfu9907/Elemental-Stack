@@ -17,6 +17,8 @@ public class Skin
     public Color baseColor;
     public float smoothness = 0.15f;
     public float metallic;
+    public Color[] emissionColors;   // neon gibi kenarları ışıyan temalarda kat kat dönen ışık renkleri
+    public float emissionIntensity = 2f;
 
     // Gökyüzü teması
     public BackgroundGradient.Palette[] palettes;   // null: varsayılan gündüz → gece döngüsü
@@ -57,6 +59,7 @@ public static class SkinCatalog
             id = "neon", nameKey = "skin_neon", type = SkinType.Block, price = 800,
             plainColors = new[] { C(0.13f, 0.15f, 0.28f), C(0.16f, 0.18f, 0.33f), C(0.12f, 0.13f, 0.25f), C(0.18f, 0.16f, 0.32f) },
             baseColor = C(0.1f, 0.11f, 0.2f), smoothness = 0.6f,
+            emissionColors = new[] { C(0.2f, 0.9f, 1f), C(1f, 0.3f, 0.9f), C(0.55f, 1f, 0.3f), C(0.65f, 0.45f, 1f) },
         },
         new Skin
         {

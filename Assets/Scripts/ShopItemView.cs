@@ -7,7 +7,8 @@ using UnityEngine.UI;
 public class ShopItemView : MonoBehaviour
 {
     public Image background;
-    public Image[] swatches;          // önizleme şeritleri, üstten alta
+    public Image preview;             // temanın küçük resmi (SkinVisuals'tan)
+    public Image[] swatches;          // resim yoksa yedek: renk şeritleri, üstten alta
     public TextMeshProUGUI nameText;
     public GameObject priceRow;       // coin simgesi + fiyat
     public TextMeshProUGUI priceText;
@@ -22,9 +23,22 @@ public class ShopItemView : MonoBehaviour
     public void Bind(Skin skin, Action<ShopItemView> onClick)
     {
         Skin = skin;
+        Sprite picture = SkinVisuals.Instance != null ? SkinVisuals.Instance.Preview(skin.id) : null;
+        if (preview != null)
+        {
+            preview.sprite = picture;
+            preview.gameObject.SetActive(picture != null);
+        }
+
         Color[] colors = SkinCatalog.PreviewColors(skin);
-        for (int i = 0; i < swatches.Length; i++)
-            swatches[i].color = colors[Mathf.Min(i, colors.Length - 1)];
+        if (swatches != null)
+        {
+            for (int i = 0; i < swatches.Length; i++)
+            {
+                swatches[i].color = colors[Mathf.Min(i, colors.Length - 1)];
+                swatches[i].gameObject.SetActive(picture == null);
+            }
+        }
 
         button.onClick.RemoveAllListeners();
         button.onClick.AddListener(() => onClick(this));

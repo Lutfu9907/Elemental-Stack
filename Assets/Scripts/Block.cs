@@ -18,6 +18,8 @@ public class Block : MonoBehaviour
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
     private static readonly int SmoothnessId = Shader.PropertyToID("_Smoothness");
     private static readonly int MetallicId = Shader.PropertyToID("_Metallic");
+    private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
+    private static readonly int EmissionMapId = Shader.PropertyToID("_EmissionMap");
     private MaterialPropertyBlock props;
 
     private void Awake()
@@ -77,6 +79,21 @@ public class Block : MonoBehaviour
         props.SetColor(BaseColorId, blockColor);
         props.SetFloat(SmoothnessId, themed ? skin.smoothness : 0.15f);
         props.SetFloat(MetallicId, themed ? skin.metallic : 0f);
+
+        // Temanın dokusu (şerit, tahta damarı, fırçalanmış metal) ve ışıma haritası (neon kenarlar).
+        // Element blokları temiz kalır: düz doku ve tam ışıma haritası (parlamaları için).
+        SkinVisuals visuals = SkinVisuals.Instance;
+        Texture baseMap = themed && visuals != null ? visuals.BaseMap(skin.id) : null;
+        Texture emissionMap = themed && visuals != null ? visuals.EmissionMap(skin.id) : null;
+        props.SetTexture(BaseMapId, baseMap != null ? baseMap : Texture2D.whiteTexture);
+        props.SetTexture(EmissionMapId, emissionMap != null ? emissionMap : Texture2D.whiteTexture);
+        if (themed)
+        {
+            Color emission = Color.black;
+            if (emissionMap != null && skin.emissionColors != null && skin.emissionColors.Length > 0)
+                emission = skin.emissionColors[floor % skin.emissionColors.Length] * skin.emissionIntensity;
+            props.SetColor(EmissionColorId, emission);
+        }
         rend.SetPropertyBlock(props);
     }
 
