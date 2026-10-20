@@ -9,7 +9,7 @@ Oyun tarafındaki her şey hazır. Aşağıdakiler hesap, imza ve mağaza işler
 ## 2. Paket adı ve sürüm
 - Paket adı: `com.lutfudolay.elementalstack`. Google Play'e yüklendikten sonra **hiç değiştirilemez**. Değiştirmek istersen `Assets/Editor/ReleaseTools.cs` içindeki `PackageName`'i ilk yüklemeden önce değiştir.
 - Sürüm 1.0.0 (kod 1). Her güncellemede Player Settings'ten *Version* ve *Bundle Version Code* bir artırılır.
-- Android ayarları (IL2CPP, ARM64, min API 25, .aab) sahne kurulurken ya da **Tower Stack → Release → Apply Android Settings** ile uygulanır.
+- Android ayarları (IL2CPP, ARM64, min API 25, .aab) sahne kurulurken ya da **Elemental Stack → Release → Apply Android Settings** ile uygulanır.
 
 ## 3. İmza anahtarı (keystore)
 - Unity: *Project Settings → Player → Android → Publishing Settings → Keystore Manager → Create New*.
@@ -35,7 +35,7 @@ Oyun tarafındaki her şey hazır. Aşağıdakiler hesap, imza ve mağaza işler
 - **Gizlilik politikası**: `docs/privacy-policy.html` dosyasını `https://lutfudolay.com/elemental-stack/privacy` adresine koy (adres `Assets/Scripts/GameLinks.cs` içinde).
 - **Uygulama içeriği**: reklam içeriyor = Evet; hedef kitle **13+** (çocuklara yönelik değil; AdMob ile daha basit); içerik derecelendirme anketi.
 - **Veri güvenliği**: oyun kendisi veri toplamıyor. AdMob için "Cihaz veya diğer kimlikler", "Uygulama etkileşimleri", "Teşhis" seçeneklerini *paylaşılıyor / reklam* amacıyla işaretle; veriler aktarımda şifreli.
-- **Mağaza girişi**: metinler ve görseller `docs/store/` klasöründe (`listing.md`, `icon-512.png`, `feature-graphic.png`). Ekran görüntüleri: Game view'i 1080x1920 yap, Play'de **Tower Stack → Release → Save Store Screenshot**.
+- **Mağaza girişi**: metinler ve görseller `docs/store/` klasöründe (`listing.md`, `icon-512.png`, `feature-graphic.png`). Ekran görüntüleri: Game view'i 1080x1920 yap, Play'de **Elemental Stack → Release → Save Store Screenshot**.
 
 ## 8. Kapalı test
 Yeni kişisel hesaplarda üretime çıkmadan önce **en az 12 test kullanıcısı 14 gün boyunca** kapalı testte olmalı. Testing → Closed testing → kanal aç, testçilerin e-postalarını ekle, .aab yükle, katılım bağlantısını paylaş.

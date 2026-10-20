@@ -16,7 +16,7 @@ using UnityEngine.UI;
 /// <summary>
 /// Builds the complete game scene (camera, tower, managers and UI) and wires every
 /// reference, so the project can be set up without hand-placing objects.
-/// Menu: Tower Stack > Build Game Scene
+/// Menu: Elemental Stack > Build Game Scene
 /// </summary>
 public static class TowerStackSceneBuilder
 {
@@ -77,7 +77,7 @@ public static class TowerStackSceneBuilder
     private static Material outlineMaterial;
     private static Sprite roundedSprite;
 
-    private const string TestEarlyMenu = "Tower Stack/Test: Elements Early";
+    private const string TestEarlyMenu = "Elemental Stack/Test: Elements Early";
 
     // Editor-only switch: elements arrive on floors 2, 4, 6 and 8 so all four can be tried quickly
     [MenuItem(TestEarlyMenu)]
@@ -96,31 +96,31 @@ public static class TowerStackSceneBuilder
     }
 
     // Editor-only test helpers for the shop; they work in and out of Play mode
-    [MenuItem("Tower Stack/Test: Add 5000 Coins")]
+    [MenuItem("Elemental Stack/Test: Add 5000 Coins")]
     private static void AddTestCoins()
     {
         PlayerData.AddCoins(5000);
-        Debug.Log("Tower Stack: 5000 coin eklendi. Toplam: " + PlayerData.Coins);
+        Debug.Log("Elemental Stack: 5000 coin eklendi. Toplam: " + PlayerData.Coins);
     }
 
-    [MenuItem("Tower Stack/Test: Reset Save Data")]
+    [MenuItem("Elemental Stack/Test: Reset Save Data")]
     private static void ResetSaveData()
     {
-        if (!EditorUtility.DisplayDialog("Tower Stack",
+        if (!EditorUtility.DisplayDialog("Elemental Stack",
                 "Coin, en yüksek skor ve satın alınan temalar silinsin mi?", "Evet, sıfırla", "Vazgeç"))
             return;
         PlayerData.ResetForTesting();
-        Debug.Log("Tower Stack: kayıt sıfırlandı.");
+        Debug.Log("Elemental Stack: kayıt sıfırlandı.");
     }
 
-    [MenuItem("Tower Stack/Build Game Scene")]
+    [MenuItem("Elemental Stack/Build Game Scene")]
     public static void Build()
     {
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             return;
 
         if (File.Exists(ScenePath) &&
-            !EditorUtility.DisplayDialog("Tower Stack",
+            !EditorUtility.DisplayDialog("Elemental Stack",
                 "Assets/Scenes/Game.unity zaten var. Yeniden oluşturulsun mu? Sahnede elle yaptığın değişiklikler silinir.",
                 "Evet, yeniden kur", "Vazgeç"))
             return;
@@ -476,7 +476,7 @@ public static class TowerStackSceneBuilder
         AssetDatabase.SaveAssets();
         AddSceneToBuildSettings(ScenePath);
 
-        Debug.Log("Tower Stack: oyun sahnesi kuruldu → " + ScenePath + ". Play'e basarak deneyebilirsin.");
+        Debug.Log("Elemental Stack: oyun sahnesi kuruldu → " + ScenePath + ". Play'e basarak deneyebilirsin.");
     }
 
     // ------------------------------------------------------------------ world
@@ -834,7 +834,7 @@ public static class TowerStackSceneBuilder
         Font font = AssetDatabase.LoadAssetAtPath<Font>(fontPath);
         if (font == null)
         {
-            Debug.LogError("Tower Stack: font bulunamadı → " + fontPath);
+            Debug.LogError("Elemental Stack: font bulunamadı → " + fontPath);
             return null;
         }
 
