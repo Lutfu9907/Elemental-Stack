@@ -7,7 +7,7 @@ using UnityEngine;
 
 /// <summary>
 /// Store release settings: package name, version, Android build options and the app icon.
-/// Applied every time the scene is built, and from the menu: Tower Stack > Release > Apply Android Settings.
+/// Applied every time the scene is built, and from the menu: Elemental Stack > Release > Apply Android Settings.
 /// The icon and store pictures are drawn by tools/store-art.js (node tools/store-art.js).
 /// </summary>
 public static class ReleaseTools
@@ -22,7 +22,7 @@ public static class ReleaseTools
     private const string IconForegroundPath = "Assets/Art/AppIconForeground.png";
     private const string ScreenshotFolder = "Screenshots";
 
-    [MenuItem("Tower Stack/Release/Apply Android Settings")]
+    [MenuItem("Elemental Stack/Release/Apply Android Settings")]
     public static void ApplyAndroidSettings()
     {
         PlayerSettings.companyName = CompanyName;
@@ -103,7 +103,7 @@ public static class ReleaseTools
     }
 
     // Store screenshots: set the Game view to 1080x1920, press Play, set up the moment and use this menu.
-    [MenuItem("Tower Stack/Release/Save Store Screenshot")]
+    [MenuItem("Elemental Stack/Release/Save Store Screenshot")]
     private static void SaveStoreScreenshot()
     {
         Directory.CreateDirectory(ScreenshotFolder);
@@ -112,6 +112,6 @@ public static class ReleaseTools
         Debug.Log("Elemental Stack: mağaza ekran görüntüsü kaydedildi → " + Path.GetFullPath(file));
     }
 
-    [MenuItem("Tower Stack/Release/Save Store Screenshot", true)]
+    [MenuItem("Elemental Stack/Release/Save Store Screenshot", true)]
     private static bool SaveStoreScreenshotValidate() => EditorApplication.isPlaying;
 }

@@ -98,7 +98,7 @@ public class TowerController : MonoBehaviour
         }
         else
         {
-            Debug.LogError("TowerController: taban bloğu yok. Tower Stack > Build Game Scene ile sahneyi yeniden kur.");
+            Debug.LogError("TowerController: taban bloğu yok. Elemental Stack > Build Game Scene ile sahneyi yeniden kur.");
         }
 
         // CameraFollow kameranın kendisinde ya da kameranın bağlı olduğu "rig" objesinde olabilir

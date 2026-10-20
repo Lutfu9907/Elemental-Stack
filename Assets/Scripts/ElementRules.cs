@@ -18,7 +18,7 @@ public static class ElementRules
 
     public const string TestEarlyPrefKey = "TowerStack.TestElementsEarly";
 
-    // Editörde "Tower Stack > Test: Elements Early" açıkken elementler 2, 4, 6, 8. katlarda gelir.
+    // Editörde "Elemental Stack > Test: Elements Early" açıkken elementler 2, 4, 6, 8. katlarda gelir.
     // Telefondaki oyunu hiç etkilemez.
     public static bool TestEarly
     {

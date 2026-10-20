@@ -9,7 +9,7 @@ Pictures in this folder:
 |---|---|
 | `icon-512.png` | App icon (512 × 512) |
 | `feature-graphic.png` | Feature graphic (1024 × 500) |
-| Screenshots | Phone screenshots: at least 2, best 4 to 8, 1080 × 1920. Take them in Unity with **Tower Stack → Release → Save Store Screenshot** (Game view set to 1080x1920, in Play mode). They are saved to the `Screenshots` folder. |
+| Screenshots | Phone screenshots: at least 2, best 4 to 8, 1080 × 1920. Take them in Unity with **Elemental Stack → Release → Save Store Screenshot** (Game view set to 1080x1920, in Play mode). They are saved to the `Screenshots` folder. |
 
 Good screenshot moments: the start screen, a perfect combo with an element block, the altitude celebration (Clouds/Space), the shop, the daily missions.
 
